@@ -4,13 +4,10 @@ pub mod disassemble;
 pub mod parameters;
 pub mod qemu;
 
-use crate::cli::Command;
-use crate::parameters::Parameters;
-use crate::qemu::run_qemu;
+use crate::{cli::Command, parameters::Parameters, qemu::run_qemu};
 use build::build;
 use disassemble::disassemble;
-use std::error::Error;
-use std::path::Path;
+use std::{error::Error, path::Path};
 use structopt::StructOpt;
 use walkdir::WalkDir;
 
@@ -22,10 +19,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     match command {
         Command::Build => {
             build(&parameters)?;
-        }
+        },
         Command::Run => {
             run_qemu(&parameters)?;
-        }
+        },
         Command::Disassemble => {
             build(&parameters)?;
 
@@ -55,7 +52,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
                 disassemble(path, destination);
             }
-        }
+        },
     }
 
     Ok(())

@@ -1,6 +1,8 @@
 use crate::parameters::config::Config;
-use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::{Display, Formatter},
+    path::{Path, PathBuf},
+};
 
 pub struct Target {
     pub name: String,

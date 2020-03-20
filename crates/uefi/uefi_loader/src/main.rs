@@ -6,17 +6,17 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::cell::UnsafeCell;
-use core::ops::Range;
-use core::ptr::slice_from_raw_parts_mut;
-use goblin::elf::program_header::ProgramHeader;
-use goblin::elf::program_header::PT_LOAD;
-use goblin::elf::Elf;
+use core::{cell::UnsafeCell, ops::Range, ptr::slice_from_raw_parts_mut};
+use goblin::elf::{
+    program_header::{ProgramHeader, PT_LOAD},
+    Elf,
+};
 use log::*;
-use uefi::prelude::*;
-use uefi::proto::media::file::{File, FileAttribute, FileMode, FileType};
-use uefi::table::boot::AllocateType;
-use uefi::table::boot::MemoryType;
+use uefi::{
+    prelude::*,
+    proto::media::file::{File, FileAttribute, FileMode, FileType},
+    table::boot::{AllocateType, MemoryType},
+};
 use x86_64::structures::paging::{PageSize, Size4KiB};
 
 fn find_protocols<P>(bt: &BootServices) -> Vec<&UnsafeCell<P>>
@@ -37,8 +37,9 @@ where
 }
 
 fn read_kernel(st: &SystemTable<Boot>) -> Vec<u8> {
-    let file_systems =
-        find_protocols::<uefi::proto::media::fs::SimpleFileSystem>(st.boot_services());
+    let file_systems = find_protocols::<uefi::proto::media::fs::SimpleFileSystem>(
+        st.boot_services(),
+    );
 
     for fs in file_systems {
         let fs = unsafe { &mut *fs.get() };
@@ -58,20 +59,25 @@ fn read_kernel(st: &SystemTable<Boot>) -> Vec<u8> {
                             let size = entry.file_size();
                             info!("Found kernel: {}: {} bytes", name, size);
 
-                            let kernel_file =
-                                dir.open(&name, FileMode::Read, attributes).unwrap().log();
+                            let kernel_file = dir
+                                .open(&name, FileMode::Read, attributes)
+                                .unwrap()
+                                .log();
                             match kernel_file.into_type().unwrap().log() {
                                 FileType::Dir(_) => unreachable!(),
                                 FileType::Regular(mut kernel_file) => {
                                     assert!(size <= (core::usize::MAX as u64));
 
                                     let mut kernel = vec![0; size as usize];
-                                    kernel_file.read(&mut kernel).unwrap().log();
+                                    kernel_file
+                                        .read(&mut kernel)
+                                        .unwrap()
+                                        .log();
                                     return kernel;
-                                }
+                                },
                             }
                         }
-                    }
+                    },
                     None => break,
                 },
                 Err(e) => match e.data() {
@@ -138,13 +144,17 @@ fn load_elf64<'buffer>(
         let file_size = range_size(&file_range);
         let size = memory_size.min(file_size);
 
-        (&mut buffer[memory_base..(memory_base + size)]).copy_from_slice(&elf_buffer[file_range]);
+        (&mut buffer[memory_base..(memory_base + size)])
+            .copy_from_slice(&elf_buffer[file_range]);
     }
 
     buffer
 }
 
-fn allocate_pages(bt: &BootServices, pages: usize) -> Option<&'static mut [u8]> {
+fn allocate_pages(
+    bt: &BootServices,
+    pages: usize,
+) -> Option<&'static mut [u8]> {
     let address = bt
         .allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages)
         .ok()?
@@ -152,7 +162,12 @@ fn allocate_pages(bt: &BootServices, pages: usize) -> Option<&'static mut [u8]> 
 
     let address = address as *mut u8;
 
-    Some(unsafe { &mut *slice_from_raw_parts_mut(address, pages * (Size4KiB::SIZE as usize)) })
+    Some(unsafe {
+        &mut *slice_from_raw_parts_mut(
+            address,
+            pages * (Size4KiB::SIZE as usize),
+        )
+    })
 }
 
 #[entry]
@@ -205,7 +220,7 @@ fn efi_main(_image: Handle, st: SystemTable<Boot>) -> Status {
             };
 
             info!("Loaded kernel, entry: 0x{:X}", entry_pointer as usize);
-        }
+        },
         _ => panic!("Unknown binary type"),
     }
 

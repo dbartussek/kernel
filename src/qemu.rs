@@ -1,7 +1,5 @@
-use crate::build::build;
-use crate::parameters::Parameters;
-use std::error::Error;
-use std::path::Path;
+use crate::{build::build, parameters::Parameters};
+use std::{error::Error, path::Path};
 
 pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
     build(parameters)?;

@@ -1,10 +1,16 @@
 use crate::parameters::{build_parameters::BuildParameters, Parameters};
 use std::error::Error;
 
-pub fn run_xtool(tool: &str, target: &str, manifest_path: Option<&str>, args: Vec<String>) {
+pub fn run_xtool(
+    tool: &str,
+    target: &str,
+    manifest_path: Option<&str>,
+    args: Vec<String>,
+) {
     println!();
 
-    let mut final_args = vec![tool.to_string(), "--target".to_string(), target.to_string()];
+    let mut final_args =
+        vec![tool.to_string(), "--target".to_string(), target.to_string()];
 
     if let Some(manifest_path) = manifest_path {
         final_args.push("--manifest-path".to_string());
