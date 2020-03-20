@@ -14,16 +14,20 @@ use walkdir::WalkDir;
 pub fn main() -> Result<(), Box<dyn Error>> {
     let command: Command = StructOpt::from_args();
 
-    let parameters = Parameters::default();
+    let mut parameters = Parameters::default();
+
+    if let Some(build_args) = command.get_build_args() {
+        parameters.apply_cli(build_args);
+    }
 
     match command {
-        Command::Build => {
+        Command::Build(_) => {
             build(&parameters)?;
         },
-        Command::Run => {
+        Command::Run(_) => {
             run_qemu(&parameters)?;
         },
-        Command::Disassemble => {
+        Command::Disassemble(_) => {
             build(&parameters)?;
 
             for entry in WalkDir::new(&parameters.esp_directory)

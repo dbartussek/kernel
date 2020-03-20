@@ -1,4 +1,6 @@
-use crate::parameters::{build_parameters::BuildParameters, Parameters};
+use crate::parameters::{
+    build_parameters::BuildParameters, config::Config, Parameters,
+};
 use std::error::Error;
 
 pub fn run_xtool(
@@ -34,11 +36,17 @@ pub fn run_xtool(
 pub fn xbuild(parameters: &BuildParameters) {
     let manifest_path = parameters.manifest_path();
 
+    let mut args = vec![];
+
+    if parameters.config == Config::Release {
+        args.push("--release".to_string());
+    }
+
     run_xtool(
         "xbuild",
         &parameters.target.to_string(),
         manifest_path.as_ref().map(|s| s.to_str().unwrap()),
-        vec![],
+        args,
     )
 }
 

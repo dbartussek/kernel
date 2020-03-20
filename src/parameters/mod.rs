@@ -1,9 +1,10 @@
 pub mod build_parameters;
 pub mod config;
 
-use crate::parameters::build_parameters::BuildParameters;
+use crate::{cli::BuildArgs, parameters::build_parameters::BuildParameters};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone)]
 pub struct Parameters {
     pub esp_directory: PathBuf,
 
@@ -25,5 +26,12 @@ impl Default for Parameters {
             kernel_build_parameters: BuildParameters::kernel_default(),
             kernel_binary_name: "core".to_string(),
         }
+    }
+}
+
+impl Parameters {
+    pub fn apply_cli(&mut self, args: &BuildArgs) {
+        self.uefi_loader_build_parameters.apply_cli(args);
+        self.kernel_build_parameters.apply_cli(args);
     }
 }

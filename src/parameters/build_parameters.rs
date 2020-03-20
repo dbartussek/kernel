@@ -1,9 +1,10 @@
-use crate::parameters::config::Config;
+use crate::{cli::BuildArgs, parameters::config::Config};
 use std::{
     fmt::{Display, Formatter},
     path::{Path, PathBuf},
 };
 
+#[derive(Debug, Clone)]
 pub struct Target {
     pub name: String,
     pub is_custom: bool,
@@ -36,6 +37,7 @@ impl Target {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BuildParameters {
     pub target: Target,
     pub manifest_directory: Option<PathBuf>,
@@ -56,6 +58,12 @@ impl BuildParameters {
             target: Target::custom("x86_64-bare".to_string()),
             manifest_directory: Some("crates/kernel/core".into()),
             config: Default::default(),
+        }
+    }
+
+    pub fn apply_cli(&mut self, args: &BuildArgs) {
+        if args.release {
+            self.config = Config::Release;
         }
     }
 
