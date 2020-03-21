@@ -13,6 +13,7 @@ log = "0.4"
 x86_64 = "0.9"
 
 page_usage = { path = "../../ffi/page_usage" }
+page_table = { path = "../../ffi/page_table" }
 
 [dependencies.goblin]
 version = "0.2"

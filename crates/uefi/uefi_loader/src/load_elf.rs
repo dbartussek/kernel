@@ -5,6 +5,7 @@ use goblin::elf::{
     Elf,
 };
 use log::*;
+use page_table::IdentityMappedPageTable;
 use page_usage::PhysicalMemoryMap;
 use uefi::{prelude::*, table::Runtime};
 
@@ -59,8 +60,11 @@ fn load_elf64<'buffer>(
     buffer
 }
 
-pub type KernelEntrySignature =
-    extern "sysv64" fn(SystemTable<Runtime>, PhysicalMemoryMap) -> ();
+pub type KernelEntrySignature = extern "sysv64" fn(
+    SystemTable<Runtime>,
+    PhysicalMemoryMap,
+    IdentityMappedPageTable,
+) -> ();
 
 pub fn load_elf(
     elf_buffer: &[u8],

@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 page_usage = { path = "../../ffi/page_usage" }
+page_table = { path = "../../ffi/page_table" }
 
 uefi = "0.4.2"
 

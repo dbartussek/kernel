@@ -14,6 +14,7 @@ members = [
 
     # FFI crates
     "crates/ffi/page_usage",
+    "crates/ffi/page_table",
     "crates/ffi/ffi_utils"
 ]
 

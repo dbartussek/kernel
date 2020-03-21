@@ -1,19 +1,23 @@
 #![no_std]
 
-use ffi_utils::ffi_slice::FfiSliceMut;
+mod page_usage;
 
-pub type PageUsageRawType = i32;
+pub use self::page_usage::*;
+use ffi_utils::ffi_slice::FfiSliceMut;
+use x86_64::structures::paging::{
+    FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB, UnusedPhysFrame,
+};
 
 #[repr(C)]
 pub struct PhysicalMemoryMap<'buf> {
     buffer: FfiSliceMut<'buf, PageUsageRawType>,
-    base: usize,
+    base: PhysFrame,
 }
 
 impl<'buf> PhysicalMemoryMap<'buf> {
     pub fn new(
         buffer: &'buf mut [PageUsageRawType],
-        base: usize,
+        base: PhysFrame,
         value: PageUsage,
     ) -> Self {
         let value = value.to_raw().unwrap();
@@ -30,21 +34,21 @@ impl<'buf> PhysicalMemoryMap<'buf> {
 
     pub fn set(
         &mut self,
-        page_index: usize,
+        frame: PhysFrame,
         value: PageUsage,
     ) -> Option<PageUsage> {
         let value = value.to_raw()?;
         let base = self.base();
 
         self.buffer_mut()
-            .get_mut(page_index - base)
+            .get_mut((frame - base) as usize)
             .map(|r| core::mem::replace(r, value))
             .map(|v| PageUsage::from_raw(v).unwrap())
     }
 
-    pub fn get(&self, page_index: usize) -> Option<PageUsage> {
+    pub fn get(&self, frame: PhysFrame) -> Option<PageUsage> {
         self.buffer()
-            .get(page_index)
+            .get((frame - self.base()) as usize)
             .map(|v| PageUsage::from_raw(*v).unwrap())
     }
 
@@ -67,46 +71,66 @@ impl<'buf> PhysicalMemoryMap<'buf> {
     }
 
     #[inline(always)]
-    pub fn pages(&self) -> usize {
-        self.buffer.len()
+    pub fn pages(&self) -> u64 {
+        self.buffer.len() as u64
     }
 
     #[inline(always)]
-    pub fn base(&self) -> usize {
+    pub fn base(&self) -> PhysFrame {
         self.base
     }
 
-    pub fn iter<'lt>(&'lt self) -> impl 'lt + Iterator<Item = PageUsage> {
+    pub fn iter<'this>(&'this self) -> impl 'this + Iterator<Item = PageUsage> {
         self.buffer()
             .iter()
             .map(|v| PageUsage::from_raw(*v).unwrap())
     }
-}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PageUsage {
-    Empty,
-    Unusable,
-
-    Custom(PageUsageRawType),
-}
-
-impl PageUsage {
-    pub fn to_raw(self) -> Option<PageUsageRawType> {
-        Some(match self {
-            PageUsage::Empty => 0,
-            PageUsage::Unusable => 1,
-            PageUsage::Custom(i) if i < 0 => i,
-            PageUsage::Custom(_) => return None,
-        })
+    pub fn find_unused_frame(&self) -> Option<UnusedPhysFrame> {
+        self.iter()
+            .enumerate()
+            .find(|(_, usage)| usage.is_empty())
+            .map(|(index, _)| self.base + (index as u64))
+            .map(|frame| unsafe { UnusedPhysFrame::new(frame) })
     }
 
-    pub fn from_raw(value: PageUsageRawType) -> Option<Self> {
-        Some(match value {
-            0 => PageUsage::Empty,
-            1 => PageUsage::Unusable,
-            i if i < 0 => PageUsage::Custom(i),
-            _ => return None,
+    pub fn frame_allocator<'this>(
+        &'this mut self,
+        usage: PageUsage,
+    ) -> PhysicalMemoryMapFrameAllocator<'this, 'buf>
+    where
+        'buf: 'this,
+    {
+        assert_ne!(usage, PageUsage::Empty);
+        assert_ne!(usage, PageUsage::Unusable);
+
+        PhysicalMemoryMapFrameAllocator { map: self, usage }
+    }
+}
+
+pub struct PhysicalMemoryMapFrameAllocator<'map, 'buf>
+where
+    'buf: 'map,
+{
+    map: &'map mut PhysicalMemoryMap<'buf>,
+    usage: PageUsage,
+}
+
+unsafe impl<'map, 'buf> FrameAllocator<Size4KiB>
+    for PhysicalMemoryMapFrameAllocator<'map, 'buf>
+where
+    'buf: 'map,
+{
+    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame<Size4KiB>> {
+        self.map.find_unused_frame().map(|frame| {
+            self.map.set((&frame as &PhysFrame).clone(), self.usage);
+            frame
         })
+    }
+}
+
+impl<'buf> FrameDeallocator<Size4KiB> for PhysicalMemoryMap<'buf> {
+    fn deallocate_frame(&mut self, frame: UnusedPhysFrame<Size4KiB>) {
+        self.set(frame.frame(), PageUsage::Empty);
     }
 }

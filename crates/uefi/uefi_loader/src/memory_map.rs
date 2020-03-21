@@ -1,6 +1,4 @@
-use crate::alloc_utils::{
-    allocate_pages_array, allocate_pages_byte_size, divide_ceil,
-};
+use crate::alloc_utils::{allocate_pages_array, allocate_pages_byte_size};
 use alloc::vec::Vec;
 use core::ops::Range;
 use page_usage::{PageUsage, PageUsageRawType, PhysicalMemoryMap};
@@ -11,7 +9,10 @@ use uefi::{
     },
     Handle,
 };
-use x86_64::structures::paging::{PageSize, Size4KiB};
+use x86_64::{
+    structures::paging::{PageSize, PhysFrame, Size4KiB},
+    PhysAddr,
+};
 
 pub fn create_memory_map_vec(st: &SystemTable<Boot>) -> Vec<MemoryDescriptor> {
     let mut buffer = vec![];
@@ -69,8 +70,9 @@ pub fn enter_descriptor_into_memory_map(
         _ => PageUsage::Unusable,
     };
 
-    for index in 0..(memory.page_count as usize) {
-        let base = (memory.phys_start as usize) / (Size4KiB::SIZE as usize);
+    let base = PhysFrame::containing_address(PhysAddr::new(memory.phys_start));
+
+    for index in 0..memory.page_count {
         map.set(base + index, usage);
     }
 }
@@ -81,13 +83,17 @@ pub fn create_physical_memory_map(
     let memory_info = create_memory_map_vec(st);
     let physical_range = physical_range(&memory_info);
 
-    let physical_base = physical_range.start / (Size4KiB::SIZE as usize);
-    let physical_end = divide_ceil(physical_range.end, Size4KiB::SIZE as usize);
-    let physical_size = physical_end - physical_base;
+    let physical_base = PhysFrame::containing_address(PhysAddr::new(
+        physical_range.start as u64,
+    ));
+    let physical_end =
+        PhysFrame::containing_address(PhysAddr::new(physical_range.end as u64));
+
+    let physical_size = physical_end - physical_base + 1;
 
     let buffer = allocate_pages_array::<PageUsageRawType>(
         st.boot_services(),
-        physical_size,
+        physical_size as usize,
     )
     .unwrap();
 

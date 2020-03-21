@@ -15,7 +15,9 @@ use crate::{
     read_kernel::read_kernel,
 };
 use log::*;
+use page_table::IdentityMappedPageTable;
 use uefi::prelude::*;
+use x86_64::{structures::paging::Page, VirtAddr};
 
 #[entry]
 fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
@@ -34,6 +36,12 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     let st = exit_boot_services(image, st, &mut map);
 
-    kernel_entry(st, map);
+    let page_table = IdentityMappedPageTable::create(
+        Page::from_start_address(VirtAddr::new(0)).unwrap(),
+        &mut map,
+        Page::from_start_address(VirtAddr::new(0)).unwrap(),
+    );
+
+    kernel_entry(st, map, page_table);
     panic!("Kernel returned");
 }

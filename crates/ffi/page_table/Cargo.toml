@@ -1,10 +1,10 @@
 [package]
-name = "page_usage"
+name = "page_table"
 version = "0.1.0"
 authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-ffi_utils = { path = "../ffi_utils" }
-
 x86_64 = "0.9"
+
+page_usage = { path = "../page_usage" }
