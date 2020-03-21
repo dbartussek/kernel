@@ -7,7 +7,6 @@ use x86_64::{
         mapper::PhysToVirt, FrameAllocator, MappedPageTable, Mapper, Page,
         PageTable, PageTableFlags, PhysFrame, Size4KiB, UnusedPhysFrame,
     },
-    PhysAddr,
 };
 
 #[repr(C)]
@@ -44,8 +43,8 @@ impl IdentityMappedPageTable {
         current_identity_base: Page,
     ) -> Self {
         // TODO support physical bases other than 0
-        let physical_base =
-            PhysFrame::from_start_address(PhysAddr::new(0)).unwrap();
+        let physical_base = physical_memory_map.base();
+        assert_eq!(physical_base.start_address().as_u64(), 0);
 
         let physical_size = physical_memory_map.pages();
 
