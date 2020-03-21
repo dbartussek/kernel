@@ -12,6 +12,8 @@ log = "0.4"
 
 x86_64 = "0.9"
 
+page_usage = { path = "../../ffi/page_usage" }
+
 [dependencies.goblin]
 version = "0.2"
 default-features = false

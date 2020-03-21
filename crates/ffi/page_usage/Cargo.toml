@@ -1,8 +1,8 @@
 [package]
-name = "core"
+name = "page_usage"
 version = "0.1.0"
 authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-page_usage = { path = "../../ffi/page_usage" }
+ffi_utils = { path = "../ffi_utils" }

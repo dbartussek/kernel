@@ -6,8 +6,15 @@ edition = "2018"
 
 [workspace]
 members = [
+    # UEFI code
     "crates/uefi/uefi_loader",
-    "crates/kernel/core"
+
+    # Kernel code
+    "crates/kernel/core",
+
+    # FFI crates
+    "crates/ffi/page_usage",
+    "crates/ffi/ffi_utils"
 ]
 
 [dependencies]

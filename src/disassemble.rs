@@ -21,6 +21,9 @@ where
             // Disassemble
             "-d".to_string(),
             //
+            // Demangle
+            "-C".to_string(),
+            //
             // Target
             source.as_ref().to_str().unwrap().to_string(),
         ])

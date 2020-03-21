@@ -1,14 +1,12 @@
-use core::{ops::Range, ptr::slice_from_raw_parts_mut};
+use crate::alloc_utils::allocate_pages_byte_size;
+use core::ops::Range;
 use goblin::elf::{
     program_header::{ProgramHeader, PT_LOAD},
     Elf,
 };
 use log::*;
-use uefi::{
-    prelude::*,
-    table::boot::{AllocateType, MemoryType},
-};
-use x86_64::structures::paging::{PageSize, Size4KiB};
+use page_usage::PhysicalMemoryMap;
+use uefi::prelude::*;
 
 fn elf_address_range<'lt, It>(headers: It) -> Range<usize>
 where
@@ -24,15 +22,6 @@ where
             .or_else(|| Some(it.vm_range()))
         })
         .unwrap_or(0..0)
-}
-
-fn divide_ceil(a: usize, b: usize) -> usize {
-    let result = a / b;
-    if a % b != 0 {
-        result + 1
-    } else {
-        result
-    }
 }
 
 fn range_size(r: &Range<usize>) -> usize {
@@ -70,29 +59,12 @@ fn load_elf64<'buffer>(
     buffer
 }
 
-fn allocate_pages(
-    bt: &BootServices,
-    pages: usize,
-) -> Option<&'static mut [u8]> {
-    let address = bt
-        .allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages)
-        .ok()?
-        .log();
-
-    let address = address as *mut u8;
-
-    Some(unsafe {
-        &mut *slice_from_raw_parts_mut(
-            address,
-            pages * (Size4KiB::SIZE as usize),
-        )
-    })
-}
+pub type KernelEntrySignature = extern "sysv64" fn(PhysicalMemoryMap) -> ();
 
 pub fn load_elf(
     elf_buffer: &[u8],
     bt: &BootServices,
-) -> (&'static mut [u8], fn() -> ()) {
+) -> (&'static mut [u8], KernelEntrySignature) {
     match Elf::parse(elf_buffer) {
         Ok(elf) => {
             info!(
@@ -110,15 +82,11 @@ pub fn load_elf(
 
             let address_range = elf_address_range(&elf.program_headers);
             let binary_size = address_range.end - address_range.start;
-            let page_size = divide_ceil(binary_size, Size4KiB::SIZE as usize);
 
             info!("Address range: {:X?}", address_range);
-            info!(
-                "Kernel memory size: 0x{:X}, pages: {}",
-                binary_size, page_size
-            );
+            info!("Kernel memory size: 0x{:X}", binary_size);
 
-            let buffer = allocate_pages(bt, page_size).unwrap();
+            let buffer = allocate_pages_byte_size(bt, binary_size).unwrap();
             info!("Allocated: 0x{:X}", buffer.as_ptr() as usize);
 
             let buffer = load_elf64(&elf, elf_buffer, buffer);
@@ -133,14 +101,10 @@ pub fn load_elf(
 
             info!("Loaded kernel, entry: 0x{:X}", entry_pointer as usize);
 
-            let entry_pointer: fn() -> () =
+            let entry_pointer: KernelEntrySignature =
                 unsafe { core::mem::transmute(entry_pointer) };
 
-            info!("Jumping into kernel");
-
-            entry_pointer();
-
-            panic!("Kernel returned");
+            (buffer, entry_pointer)
         },
         _ => panic!("Unknown binary type"),
     }

@@ -5,7 +5,9 @@
 #[macro_use]
 extern crate alloc;
 
+pub mod alloc_utils;
 pub mod load_elf;
+pub mod memory_map;
 pub mod read_kernel;
 
 use crate::{load_elf::load_elf, read_kernel::read_kernel};
@@ -25,6 +27,8 @@ fn efi_main(_image: Handle, st: SystemTable<Boot>) -> Status {
 
     let (_loaded_kernel, kernel_entry) = load_elf(&kernel, st.boot_services());
 
-    kernel_entry();
-    panic!("Kernel ")
+    let map = memory_map::create_physical_memory_map(&st);
+
+    kernel_entry(map);
+    panic!("Kernel returned");
 }
