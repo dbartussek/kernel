@@ -5,7 +5,7 @@ use x86_64::{
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
         mapper::PhysToVirt, FrameAllocator, MappedPageTable, Mapper, Page,
-        PageTable, PageTableFlags, PhysFrame, UnusedPhysFrame,
+        PageTable, PageTableFlags, PhysFrame, Size4KiB, UnusedPhysFrame,
     },
     PhysAddr,
 };
@@ -52,25 +52,53 @@ impl IdentityMappedPageTable {
         let current_phys_to_virt =
             identity_mapped_phys_to_virt(current_identity_base);
 
-        // Allocate the root page
-        let root = physical_memory_map
-            .frame_allocator(PageUsage::PageTableRoot { reference_count: 0 })
-            .allocate_frame()
-            .unwrap()
-            .frame();
-
-        // Clear the root page
+        fn allocate_page<A, PtV>(
+            allocator: &mut A,
+            phys_to_virt: &PtV,
+        ) -> Option<PhysFrame>
+        where
+            A: FrameAllocator<Size4KiB>,
+            PtV: PhysToVirt,
         {
-            let root = current_phys_to_virt.phys_to_virt(root);
-            unsafe { root.write(PageTable::new()) };
+            allocator.allocate_frame().map(|frame| {
+                let frame = frame.frame();
+                {
+                    let table = phys_to_virt.phys_to_virt(frame);
+                    unsafe { table.write(PageTable::new()) };
+                }
+                frame
+            })
+        }
+
+        // Allocate the root page
+        let root = allocate_page(
+            &mut physical_memory_map.frame_allocator(
+                PageUsage::PageTableRoot { reference_count: 0 },
+            ),
+            &current_phys_to_virt,
+        )
+        .unwrap();
+
+        let level_4_table =
+            unsafe { &mut *current_phys_to_virt.phys_to_virt(root) };
+
+        for entry in level_4_table.iter_mut().skip(512 / 2) {
+            let page = allocate_page(
+                &mut physical_memory_map.frame_allocator(
+                    PageUsage::PageTable { reference_count: 0 },
+                ),
+                &current_phys_to_virt,
+            )
+            .unwrap();
+            entry.set_frame(
+                page,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+            );
         }
 
         // Create a MappedPageTable using the old identity mapping
         let mut intermediate_table = unsafe {
-            MappedPageTable::new(
-                &mut *current_phys_to_virt.phys_to_virt(root),
-                current_phys_to_virt,
-            )
+            MappedPageTable::new(level_4_table, current_phys_to_virt)
         };
 
         // Map all physical pages to their identity position
