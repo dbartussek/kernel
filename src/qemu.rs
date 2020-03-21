@@ -60,10 +60,16 @@ pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
         "std".to_string(),
     ];
 
-    std::process::Command::new("qemu-system-x86_64")
+    let status = std::process::Command::new("qemu-system-x86_64")
         .args(qemu_args)
         .status()
         .unwrap();
+
+    if !status.success() {
+        let value = status.code().unwrap();
+        println!("qemu exit status 0x{:X}", value);
+        std::process::exit(value);
+    }
 
     Ok(())
 }

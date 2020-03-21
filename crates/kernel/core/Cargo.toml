@@ -6,3 +6,7 @@ edition = "2018"
 
 [dependencies]
 page_usage = { path = "../../ffi/page_usage" }
+
+uefi = "0.4.2"
+
+qemu-exit = "0.1"

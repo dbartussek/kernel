@@ -6,7 +6,7 @@ use goblin::elf::{
 };
 use log::*;
 use page_usage::PhysicalMemoryMap;
-use uefi::prelude::*;
+use uefi::{prelude::*, table::Runtime};
 
 fn elf_address_range<'lt, It>(headers: It) -> Range<usize>
 where
@@ -59,7 +59,8 @@ fn load_elf64<'buffer>(
     buffer
 }
 
-pub type KernelEntrySignature = extern "sysv64" fn(PhysicalMemoryMap) -> ();
+pub type KernelEntrySignature =
+    extern "sysv64" fn(SystemTable<Runtime>, PhysicalMemoryMap) -> ();
 
 pub fn load_elf(
     elf_buffer: &[u8],

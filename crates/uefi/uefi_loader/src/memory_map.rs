@@ -1,10 +1,15 @@
-use crate::alloc_utils::{allocate_pages_array, divide_ceil};
+use crate::alloc_utils::{
+    allocate_pages_array, allocate_pages_byte_size, divide_ceil,
+};
 use alloc::vec::Vec;
 use core::ops::Range;
 use page_usage::{PageUsage, PageUsageRawType, PhysicalMemoryMap};
-use uefi::table::{
-    boot::{MemoryDescriptor, MemoryType},
-    Boot, SystemTable,
+use uefi::{
+    table::{
+        boot::{MemoryDescriptor, MemoryType},
+        Boot, Runtime, SystemTable,
+    },
+    Handle,
 };
 use x86_64::structures::paging::{PageSize, Size4KiB};
 
@@ -94,4 +99,25 @@ pub fn create_physical_memory_map(
     }
 
     map
+}
+
+pub fn exit_boot_services(
+    image: Handle,
+    st: SystemTable<Boot>,
+    map: &mut PhysicalMemoryMap,
+) -> SystemTable<Runtime> {
+    let map_size = st.boot_services().memory_map_size();
+    let mut buffer = allocate_pages_byte_size(
+        st.boot_services(),
+        map_size + (core::mem::size_of::<MemoryDescriptor>() * 5),
+    )
+    .unwrap();
+    let (st, memory_iter) =
+        st.exit_boot_services(image, &mut buffer).unwrap().unwrap();
+
+    for it in memory_iter {
+        enter_descriptor_into_memory_map(*it, map);
+    }
+
+    st
 }

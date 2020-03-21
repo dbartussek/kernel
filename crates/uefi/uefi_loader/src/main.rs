@@ -10,12 +10,15 @@ pub mod load_elf;
 pub mod memory_map;
 pub mod read_kernel;
 
-use crate::{load_elf::load_elf, read_kernel::read_kernel};
+use crate::{
+    load_elf::load_elf, memory_map::exit_boot_services,
+    read_kernel::read_kernel,
+};
 use log::*;
 use uefi::prelude::*;
 
 #[entry]
-fn efi_main(_image: Handle, st: SystemTable<Boot>) -> Status {
+fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     uefi_services::init(&st).expect_success("Failed to initialize utilities");
 
     st.stdout().reset(false).unwrap().log();
@@ -27,8 +30,10 @@ fn efi_main(_image: Handle, st: SystemTable<Boot>) -> Status {
 
     let (_loaded_kernel, kernel_entry) = load_elf(&kernel, st.boot_services());
 
-    let map = memory_map::create_physical_memory_map(&st);
+    let mut map = memory_map::create_physical_memory_map(&st);
 
-    kernel_entry(map);
+    let st = exit_boot_services(image, st, &mut map);
+
+    kernel_entry(st, map);
     panic!("Kernel returned");
 }
