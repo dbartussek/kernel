@@ -14,12 +14,14 @@ pub extern "sysv64" fn _start(
 ) -> ! {
     assert_ne!(map.pages(), 0);
 
-    panic!("Test");
-
-    loop {}
+    exit(0);
 }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    qemu_exit::x86::exit::<u32, { 0xf4 }>((-1i32) as u32)
+    exit(-1);
+}
+
+pub fn exit(status: i32) -> ! {
+    qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
 }

@@ -65,10 +65,18 @@ pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
         .status()
         .unwrap();
 
-    if !status.success() {
-        let value = status.code().unwrap();
-        println!("qemu exit status 0x{:X}", value);
-        std::process::exit(value);
+    let kernel_status_code = status.code().and_then(|v| if v & 1 == 1 {
+        Some(v >> 1)
+    } else {
+        None
+    });
+
+    if let Some(kernel_status_code) = kernel_status_code {
+        println!("\nkernel_status_code: 0x{:X}", kernel_status_code);
+
+        if kernel_status_code != 0 {
+            std::process::exit(kernel_status_code);
+        }
     }
 
     Ok(())
