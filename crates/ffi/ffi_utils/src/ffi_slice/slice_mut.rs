@@ -1,5 +1,6 @@
 use core::{
     marker::PhantomData,
+    ptr::NonNull,
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
@@ -10,7 +11,7 @@ use core::{
 /// it is treated the same as this struct, which can be returned in registers
 #[repr(C)]
 struct FfiSliceMutData<T> {
-    pub ptr: *mut T,
+    pub ptr: NonNull<T>,
     pub len: usize,
 }
 
@@ -24,6 +25,7 @@ impl<'lt, T> FfiSliceMut<'lt, T> {
     pub fn new(s: &'lt mut [T]) -> Self {
         let len = s.len();
         let ptr = s.as_mut_ptr();
+        let ptr = unsafe { NonNull::new_unchecked(ptr) };
 
         FfiSliceMut {
             data: FfiSliceMutData { len, ptr },
@@ -38,12 +40,16 @@ impl<'lt, T> FfiSliceMut<'lt, T> {
 
     #[inline(always)]
     pub fn as_slice_mut(&mut self) -> &mut [T] {
-        unsafe { from_raw_parts_mut(self.data.ptr, self.data.len) }
+        unsafe {
+            from_raw_parts_mut(self.data.ptr.as_mut() as *mut T, self.data.len)
+        }
     }
 
     #[inline(always)]
     pub fn as_slice(&self) -> &[T] {
-        unsafe { from_raw_parts(self.data.ptr, self.data.len) }
+        unsafe {
+            from_raw_parts(self.data.ptr.as_ref() as *const T, self.data.len)
+        }
     }
 
     #[inline(always)]
@@ -54,7 +60,7 @@ impl<'lt, T> FfiSliceMut<'lt, T> {
 
 impl<'lt, T> Into<&'lt mut [T]> for FfiSliceMut<'lt, T> {
     fn into(self) -> &'lt mut [T] {
-        unsafe { from_raw_parts_mut(self.data.ptr, self.data.len) }
+        unsafe { from_raw_parts_mut(self.data.ptr.as_ptr(), self.data.len) }
     }
 }
 

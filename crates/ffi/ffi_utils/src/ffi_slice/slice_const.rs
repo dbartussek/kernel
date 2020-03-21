@@ -1,4 +1,4 @@
-use core::{marker::PhantomData, slice::from_raw_parts};
+use core::{marker::PhantomData, ptr::NonNull, slice::from_raw_parts};
 
 /// Adding this level of indirection improves generated code
 ///
@@ -8,7 +8,7 @@ use core::{marker::PhantomData, slice::from_raw_parts};
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct FfiSliceData<T> {
-    pub ptr: *const T,
+    pub ptr: NonNull<T>,
     pub len: usize,
 }
 
@@ -22,6 +22,7 @@ impl<'lt, T> FfiSlice<'lt, T> {
     pub fn new(s: &'lt [T]) -> Self {
         let len = s.len();
         let ptr = s.as_ptr();
+        let ptr = unsafe { NonNull::new_unchecked(ptr as *mut T) };
 
         FfiSlice {
             data: FfiSliceData { len, ptr },
@@ -31,7 +32,9 @@ impl<'lt, T> FfiSlice<'lt, T> {
 
     #[inline(always)]
     pub fn as_slice(&self) -> &[T] {
-        unsafe { from_raw_parts(self.data.ptr, self.data.len) }
+        unsafe {
+            from_raw_parts(self.data.ptr.as_ref() as *const T, self.data.len)
+        }
     }
 
     #[inline(always)]
@@ -42,7 +45,7 @@ impl<'lt, T> FfiSlice<'lt, T> {
 
 impl<'lt, T> Into<&'lt [T]> for FfiSlice<'lt, T> {
     fn into(self) -> &'lt [T] {
-        unsafe { from_raw_parts(self.data.ptr, self.data.len) }
+        unsafe { from_raw_parts(self.data.ptr.as_ptr(), self.data.len) }
     }
 }
 
