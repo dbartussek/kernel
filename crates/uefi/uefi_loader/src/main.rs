@@ -44,6 +44,10 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         )
     };
 
+    unsafe {
+        page_table.activate();
+    };
+
     kernel_entry(st, map, page_table);
     panic!("Kernel returned");
 }

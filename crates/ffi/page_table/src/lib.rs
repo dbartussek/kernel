@@ -2,6 +2,7 @@
 
 use page_usage::{PageUsage, PhysicalMemoryMap};
 use x86_64::{
+    registers::control::{Cr3, Cr3Flags},
     structures::paging::{
         mapper::PhysToVirt, FrameAllocator, MappedPageTable, Mapper, Page,
         PageTable, PageTableFlags, PhysFrame, UnusedPhysFrame,
@@ -118,5 +119,9 @@ impl IdentityMappedPageTable {
         let root = phys_to_virt.phys_to_virt(self.root);
 
         MappedPageTable::new(&mut *root, phys_to_virt)
+    }
+
+    pub unsafe fn activate(&self) {
+        Cr3::write(self.root, Cr3Flags::empty());
     }
 }
