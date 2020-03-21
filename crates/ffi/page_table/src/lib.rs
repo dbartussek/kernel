@@ -6,7 +6,7 @@ use x86_64::{
         mapper::PhysToVirt, FrameAllocator, MappedPageTable, Mapper, Page,
         PageTable, PageTableFlags, PhysFrame, UnusedPhysFrame,
     },
-    PhysAddr, VirtAddr,
+    PhysAddr,
 };
 
 #[repr(C)]
@@ -30,7 +30,12 @@ impl IdentityMappedPageTable {
         }
     }
 
-    pub fn create(
+    /// Creates a new IdentityMappedPageTable
+    ///
+    /// This is unsafe because
+    /// it wants to write to a bunch of physical pages based on current_identity_base
+    #[allow(unused_unsafe)]
+    pub unsafe fn create(
         identity_base: Page,
 
         physical_memory_map: &mut PhysicalMemoryMap,
@@ -89,23 +94,29 @@ impl IdentityMappedPageTable {
         }
     }
 
-    pub fn physical_address_to_virtual_identity(
-        &self,
-        physical: PhysAddr,
-    ) -> VirtAddr {
-        self.identity_base.start_address() + (physical.as_u64())
-    }
-
+    /// Get the page table
+    ///
+    /// This is unsafe because it only works correctly if self is the active page table
     pub unsafe fn get_page_table_mut(
         &mut self,
     ) -> MappedPageTable<impl PhysToVirt> {
-        let root = self
-            .physical_address_to_virtual_identity(self.root.start_address());
-        let root: &mut PageTable = &mut *root.as_mut_ptr();
-
-        MappedPageTable::new(
-            root,
-            identity_mapped_phys_to_virt(self.identity_base),
+        self.get_page_table_mut_in_different_identity_mapping(
+            self.identity_base,
         )
+    }
+
+    /// Get the page table
+    ///
+    /// This is unsafe because it only works correctly if
+    /// identity_base has a full mapping of all physical pages
+    pub unsafe fn get_page_table_mut_in_different_identity_mapping(
+        &mut self,
+        identity_base: Page,
+    ) -> MappedPageTable<impl PhysToVirt> {
+        let phys_to_virt = identity_mapped_phys_to_virt(identity_base);
+
+        let root = phys_to_virt.phys_to_virt(self.root);
+
+        MappedPageTable::new(&mut *root, phys_to_virt)
     }
 }

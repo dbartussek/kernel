@@ -36,11 +36,13 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     let st = exit_boot_services(image, st, &mut map);
 
-    let page_table = IdentityMappedPageTable::create(
-        Page::from_start_address(VirtAddr::new(0)).unwrap(),
-        &mut map,
-        Page::from_start_address(VirtAddr::new(0)).unwrap(),
-    );
+    let page_table = unsafe {
+        IdentityMappedPageTable::create(
+            Page::from_start_address(VirtAddr::new(0)).unwrap(),
+            &mut map,
+            Page::from_start_address(VirtAddr::new(0)).unwrap(),
+        )
+    };
 
     kernel_entry(st, map, page_table);
     panic!("Kernel returned");
