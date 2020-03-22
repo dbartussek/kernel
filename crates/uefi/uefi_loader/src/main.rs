@@ -3,7 +3,6 @@
 #![feature(abi_efiapi)]
 #![feature(asm)]
 
-
 #[macro_use]
 extern crate alloc;
 
@@ -41,6 +40,9 @@ const STACK_BASE: u64 = KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * 1;
 
 const STACK_SIZE_PAGES: u64 = 256;
 
+// These are duplicated from the ffi/stack_switch crate.
+// For some reason, the "intel" modifier is ignored when the function is not in the *exact* same file
+// it is used in. I am investigating this, but for now, this works.
 
 pub unsafe fn call_with_stack<T>(
     arg: &mut T,
@@ -185,7 +187,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .count()
     );
 
-    let stack_top: Page<Size4KiB> = {
+    let stack_top: VirtAddr = {
         let stack_base_frame =
             PhysFrame::<Size4KiB>::from_start_address(PhysAddr::new(
                 st.boot_services()
@@ -200,7 +202,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .unwrap();
         let stack_top_frame = stack_base_frame + STACK_SIZE_PAGES;
 
-        let stack_base =
+        let stack_base: Page<Size4KiB> =
             Page::from_start_address(VirtAddr::new(STACK_BASE)).unwrap();
         let stack_top = stack_base + STACK_SIZE_PAGES;
 
@@ -233,7 +235,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             stack_base.start_address().as_u64()
         );
 
-        stack_top
+        stack_top.start_address()
     };
 
     info!("Exiting boot services");
@@ -265,7 +267,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
                 exit(-2)
             },
-            stack_top.start_address().as_mut_ptr(),
+            stack_top.as_mut_ptr(),
         )
     };
 
