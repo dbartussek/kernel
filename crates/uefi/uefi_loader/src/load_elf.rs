@@ -4,10 +4,9 @@ use goblin::elf::{
     program_header::{ProgramHeader, PT_LOAD},
     Elf,
 };
+use kernel_core::KernelArguments;
 use log::*;
-use page_table::IdentityMappedPageTable;
-use page_usage::PhysicalMemoryMap;
-use uefi::{prelude::*, table::Runtime};
+use uefi::table::boot::BootServices;
 
 fn elf_address_range<'lt, It>(headers: It) -> Range<usize>
 where
@@ -60,11 +59,7 @@ fn load_elf64<'buffer>(
     buffer
 }
 
-pub type KernelEntrySignature = extern "sysv64" fn(
-    SystemTable<Runtime>,
-    PhysicalMemoryMap,
-    IdentityMappedPageTable,
-) -> ();
+pub type KernelEntrySignature = extern "sysv64" fn(KernelArguments) -> ();
 
 pub fn load_elf(
     elf_buffer: &[u8],

@@ -14,8 +14,9 @@ use crate::{
     load_elf::load_elf, memory_map::exit_boot_services,
     read_kernel::read_kernel,
 };
+use kernel_core::KernelArguments;
 use log::*;
-use page_table::IdentityMappedPageTable;
+use page_table::KernelPageTable;
 use uefi::prelude::*;
 use x86_64::{structures::paging::Page, VirtAddr};
 
@@ -32,14 +33,16 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     let (_loaded_kernel, kernel_entry) = load_elf(&kernel, st.boot_services());
 
-    let mut map = memory_map::create_physical_memory_map(&st);
+    let mut physical_memory_map = memory_map::create_physical_memory_map(&st);
 
-    let st = exit_boot_services(image, st, &mut map);
+    let st = exit_boot_services(image, st, &mut physical_memory_map);
+
+    let identity_base = Page::from_start_address(VirtAddr::new(0)).unwrap();
 
     let page_table = unsafe {
-        IdentityMappedPageTable::create(
-            Page::from_start_address(VirtAddr::new(0)).unwrap(),
-            &mut map,
+        KernelPageTable::initialize_and_create(
+            identity_base,
+            &mut physical_memory_map,
             Page::from_start_address(VirtAddr::new(0)).unwrap(),
         )
     };
@@ -48,6 +51,12 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         page_table.activate();
     };
 
-    kernel_entry(st, map, page_table);
+    kernel_entry(KernelArguments {
+        st,
+        physical_memory_map,
+        identity_base,
+        page_table,
+    });
+
     panic!("Kernel returned");
 }

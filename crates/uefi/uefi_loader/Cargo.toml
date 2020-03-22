@@ -15,6 +15,8 @@ x86_64 = "0.9"
 page_usage = { path = "../../ffi/page_usage" }
 page_table = { path = "../../ffi/page_table" }
 
+kernel_core = { path = "../../kernel/core" }
+
 [dependencies.goblin]
 version = "0.2"
 default-features = false

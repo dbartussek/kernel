@@ -2,17 +2,13 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-use page_table::IdentityMappedPageTable;
-use page_usage::PhysicalMemoryMap;
-use uefi::table::{Runtime, SystemTable};
+use kernel_core::KernelArguments;
 
 #[no_mangle]
-pub extern "sysv64" fn _start(
-    _st: SystemTable<Runtime>,
-    map: PhysicalMemoryMap,
-    _page_table: IdentityMappedPageTable,
-) -> ! {
-    assert_ne!(map.pages(), 0);
+pub extern "sysv64" fn _start(mut args: KernelArguments) -> ! {
+    assert_ne!(args.physical_memory_map.pages(), 0);
+
+    args.init();
 
     exit(0);
 }

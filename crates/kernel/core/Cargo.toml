@@ -1,5 +1,5 @@
 [package]
-name = "core"
+name = "kernel_core"
 version = "0.1.0"
 authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
 edition = "2018"
@@ -11,3 +11,5 @@ page_table = { path = "../../ffi/page_table" }
 uefi = "0.4.2"
 
 qemu-exit = "0.1"
+
+x86_64 = "0.9"

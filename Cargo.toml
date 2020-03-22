@@ -18,6 +18,9 @@ members = [
     "crates/ffi/ffi_utils"
 ]
 
+[profile.release]
+opt-level = "s"
+
 [dependencies]
 structopt = "0.3"
 walkdir = "2.3"

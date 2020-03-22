@@ -24,7 +24,7 @@ impl Default for Parameters {
             uefi_loader_binary_name: "uefi_loader.efi".to_string(),
 
             kernel_build_parameters: BuildParameters::kernel_default(),
-            kernel_binary_name: "core".to_string(),
+            kernel_binary_name: "kernel_core".to_string(),
         }
     }
 }
