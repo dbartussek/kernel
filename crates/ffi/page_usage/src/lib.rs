@@ -1,12 +1,16 @@
 #![no_std]
 
+pub mod allocator;
 mod page_usage;
 
 pub use self::page_usage::*;
+use crate::allocator::{
+    ExternalPhysicalMemoryMapFrameAllocator, PhysicalMemoryMapFrameAllocator,
+};
 use ffi_utils::ffi_slice::FfiSliceMut;
 use x86_64::structures::paging::{
-    frame::PhysFrameRange, FrameAllocator, FrameDeallocator, PhysFrame,
-    Size4KiB, UnusedPhysFrame,
+    frame::PhysFrameRange, FrameDeallocator, PhysFrame, Size4KiB,
+    UnusedPhysFrame,
 };
 
 #[repr(C)]
@@ -112,28 +116,23 @@ impl<'buf> PhysicalMemoryMap<'buf> {
         assert_ne!(usage, PageUsage::Empty);
         assert_ne!(usage, PageUsage::Unusable);
 
-        PhysicalMemoryMapFrameAllocator { map: self, usage }
+        PhysicalMemoryMapFrameAllocator::new(self, usage)
     }
-}
 
-pub struct PhysicalMemoryMapFrameAllocator<'map, 'buf>
-where
-    'buf: 'map,
-{
-    map: &'map mut PhysicalMemoryMap<'buf>,
-    usage: PageUsage,
-}
+    /// This is unsafe, because you better trust this external function to know what its doing
+    pub unsafe fn external_frame_allocator<'this, A>(
+        &'this mut self,
+        usage: PageUsage,
+        allocator: A,
+    ) -> ExternalPhysicalMemoryMapFrameAllocator<'this, 'buf, A>
+    where
+        'buf: 'this,
+        A: FnMut(&PhysicalMemoryMap<'buf>) -> Option<UnusedPhysFrame>,
+    {
+        assert_ne!(usage, PageUsage::Empty);
+        assert_ne!(usage, PageUsage::Unusable);
 
-unsafe impl<'map, 'buf> FrameAllocator<Size4KiB>
-    for PhysicalMemoryMapFrameAllocator<'map, 'buf>
-where
-    'buf: 'map,
-{
-    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame<Size4KiB>> {
-        self.map.find_unused_frame().map(|frame| {
-            self.map.set((&frame as &PhysFrame).clone(), self.usage);
-            frame
-        })
+        ExternalPhysicalMemoryMapFrameAllocator::new(self, usage, allocator)
     }
 }
 

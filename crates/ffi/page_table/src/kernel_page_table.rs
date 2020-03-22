@@ -5,6 +5,7 @@ use x86_64::{
     structures::paging::{
         mapper::PhysToVirt, FrameAllocator, MappedPageTable, Mapper,
         OffsetPageTable, Page, PageTable, PageTableFlags, PhysFrame, Size4KiB,
+        UnusedPhysFrame,
     },
     PhysAddr,
 };
@@ -37,11 +38,17 @@ impl KernelPageTable {
     }
 
     #[allow(unused_unsafe)]
-    pub unsafe fn initialize_and_create(
+    pub unsafe fn initialize_and_create<A>(
         physical_memory_map: &mut PhysicalMemoryMap,
         current_identity_base: Page,
-    ) -> Self {
-        crate::initialize(current_identity_base);
+        mut allocate: A,
+    ) -> Self
+    where
+        A: FnMut(&PhysicalMemoryMap) -> Option<UnusedPhysFrame>,
+    {
+        unsafe {
+            crate::initialize(current_identity_base);
+        }
 
         // TODO support physical bases other than 0
         let physical_base = physical_memory_map.base();
@@ -52,7 +59,7 @@ impl KernelPageTable {
         let current_phys_to_virt =
             identity_mapped_phys_to_virt(current_identity_base);
 
-        fn allocate_page<A, PtV>(
+        fn create_page_table<A, PtV>(
             allocator: &mut A,
             phys_to_virt: &PtV,
         ) -> Option<PhysFrame>
@@ -71,9 +78,10 @@ impl KernelPageTable {
         }
 
         // Allocate the root page
-        let root = allocate_page(
-            &mut physical_memory_map.frame_allocator(
+        let root = create_page_table(
+            &mut physical_memory_map.external_frame_allocator(
                 PageUsage::PageTableRoot { reference_count: 0 },
+                &mut allocate,
             ),
             &current_phys_to_virt,
         )
@@ -84,9 +92,10 @@ impl KernelPageTable {
 
         // Fill the kernel space top level entries
         for entry in level_4_table.iter_mut().skip(512 / 2) {
-            let page = allocate_page(
-                &mut physical_memory_map.frame_allocator(
+            let page = create_page_table(
+                &mut physical_memory_map.external_frame_allocator(
                     PageUsage::PageTable { reference_count: 0 },
+                    &mut allocate,
                 ),
                 &current_phys_to_virt,
             )
@@ -106,8 +115,10 @@ impl KernelPageTable {
         });
 
         // Map all physical pages to their identity position
-        let mut allocator = physical_memory_map
-            .frame_allocator(PageUsage::PageTable { reference_count: 0 });
+        let mut allocator = physical_memory_map.external_frame_allocator(
+            PageUsage::PageTable { reference_count: 0 },
+            &mut allocate,
+        );
 
         manager.map_range(
             physical_range,

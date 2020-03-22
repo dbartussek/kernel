@@ -18,10 +18,15 @@ use kernel_core::KernelArguments;
 use log::*;
 use page_table::KernelPageTable;
 use page_usage::PageUsage;
-use uefi::prelude::*;
+use uefi::{
+    prelude::*,
+    table::boot::{AllocateType, MemoryType},
+};
 use x86_64::{
-    structures::paging::{Mapper, Page, PageTableFlags},
-    VirtAddr,
+    structures::paging::{
+        Mapper, Page, PageTableFlags, PhysFrame, UnusedPhysFrame,
+    },
+    PhysAddr, VirtAddr,
 };
 
 #[entry]
@@ -43,15 +48,30 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     let (_loaded_kernel, kernel_entry) =
         load_elf(&kernel, st.boot_services(), identity_base);
 
-    info!("Exiting boot services");
-
-    let st = exit_boot_services(image, st, &mut physical_memory_map);
+    fn uefi_frame_allocator<'lt>(
+        bt: &'lt BootServices,
+    ) -> impl 'lt + Fn() -> Option<UnusedPhysFrame> {
+        move || {
+            bt.allocate_pages(
+                AllocateType::AnyPages,
+                MemoryType::LOADER_DATA,
+                1,
+            )
+            .ok()
+            .map(|address| unsafe {
+                UnusedPhysFrame::new(PhysFrame::containing_address(
+                    PhysAddr::new(address.log()),
+                ))
+            })
+        }
+    }
 
     // Create page table
     let mut page_table = unsafe {
         KernelPageTable::initialize_and_create(
             &mut physical_memory_map,
             Page::from_start_address(VirtAddr::new(0)).unwrap(),
+            |_| uefi_frame_allocator(st.boot_services())(),
         )
     };
 
@@ -62,10 +82,37 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             identity_base,
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
             false,
-            &mut physical_memory_map
-                .frame_allocator(PageUsage::PageTable { reference_count: 0 }),
+            unsafe {
+                &mut physical_memory_map.external_frame_allocator(
+                    PageUsage::PageTable { reference_count: 0 },
+                    |_| uefi_frame_allocator(st.boot_services())(),
+                )
+            },
         );
     }
+
+    info!(
+        "Pages used for page tables: 0x{:X}",
+        physical_memory_map
+            .iter()
+            .filter(|entry| match entry {
+                PageUsage::PageTable { .. }
+                | PageUsage::PageTableRoot { .. } => true,
+                _ => false,
+            })
+            .count()
+    );
+    info!(
+        "Available pages: 0x{:X}",
+        physical_memory_map
+            .iter()
+            .filter(|entry| *entry == PageUsage::Empty)
+            .count()
+    );
+
+    info!("Exiting boot services");
+
+    let st = exit_boot_services(image, st, &mut physical_memory_map);
 
     // Activate the new page table
     unsafe {

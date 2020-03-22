@@ -73,7 +73,15 @@ pub fn enter_descriptor_into_memory_map(
     let base = PhysFrame::containing_address(PhysAddr::new(memory.phys_start));
 
     for index in 0..memory.page_count {
-        map.set(base + index, usage);
+        let frame = base + index;
+
+        // If we don't have more specific information, set the page to unusable, just in case
+        if matches!(
+            map.get(frame),
+            None | Some(PageUsage::Empty) | Some(PageUsage::Unusable)
+        ) {
+            map.set(frame, usage);
+        }
     }
 }
 
