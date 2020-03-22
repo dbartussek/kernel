@@ -55,7 +55,6 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         st,
         physical_memory_map,
         identity_base,
-        page_table,
     });
 
     panic!("Kernel returned");

@@ -1,6 +1,5 @@
 #![no_std]
 
-use page_table::KernelPageTable;
 use page_usage::PhysicalMemoryMap;
 use uefi::table::{Runtime, SystemTable};
 use x86_64::structures::paging::Page;
@@ -11,7 +10,6 @@ pub struct KernelArguments {
 
     pub physical_memory_map: PhysicalMemoryMap<'static>,
     pub identity_base: Page,
-    pub page_table: KernelPageTable,
 }
 
 impl KernelArguments {

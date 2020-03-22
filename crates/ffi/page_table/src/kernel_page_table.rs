@@ -29,7 +29,7 @@ impl KernelPageTable {
         }
     }
 
-    pub fn from_current_page_table() -> Self {
+    pub fn current_page_table() -> Self {
         unsafe { Self::from_raw_parts(Cr3::read().0) }
     }
 
@@ -147,10 +147,10 @@ impl KernelPageTable {
         MappedPageTable::new(&mut *root, phys_to_virt)
     }
 
-    pub unsafe fn get_manager<'this>(
+    pub fn get_manager<'this>(
         &'this mut self,
     ) -> KernelPageTableManager<impl 'this + Mapper<Size4KiB>, Size4KiB> {
-        KernelPageTableManager::new(self.get_page_table_mut())
+        KernelPageTableManager::new(unsafe { self.get_page_table_mut() })
     }
 
     pub unsafe fn activate(&self) {
