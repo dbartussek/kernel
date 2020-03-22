@@ -6,7 +6,9 @@ use kernel_core::{exit, KernelArguments};
 use page_table::KernelPageTable;
 
 #[no_mangle]
-pub extern "sysv64" fn _start(args: KernelArguments) -> ! {
+pub extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
+    let args = unsafe { args.read() };
+
     assert_ne!(args.physical_memory_map.pages(), 0);
 
     let _args = args.init();

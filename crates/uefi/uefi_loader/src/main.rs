@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_efiapi)]
 #![feature(asm)]
+#![feature(maybe_uninit_extra)]
 
 #[macro_use]
 extern crate alloc;
@@ -15,7 +16,8 @@ use crate::{
     load_elf::load_elf, memory_map::exit_boot_services,
     read_kernel::read_kernel,
 };
-use core::mem::{ManuallyDrop, MaybeUninit};
+use alloc::boxed::Box;
+use core::mem::MaybeUninit;
 use kernel_core::{exit, KernelArguments};
 use log::*;
 use page_table::KernelPageTable;
@@ -25,6 +27,7 @@ use uefi::{
     table::boot::{AllocateType, MemoryType},
 };
 use x86_64::{
+    registers::{control::EferFlags, model_specific::Efer},
     structures::paging::{
         frame::PhysFrameRange, Mapper, Page, PageTableFlags, PhysFrame,
         Size4KiB, UnusedPhysFrame,
@@ -40,72 +43,6 @@ const STACK_BASE: u64 = KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * 1;
 
 const STACK_SIZE_PAGES: u64 = 256;
 
-// These are duplicated from the ffi/stack_switch crate.
-// For some reason, the "intel" modifier is ignored when the function is not in the *exact* same file
-// it is used in. I am investigating this, but for now, this works.
-
-pub unsafe fn call_with_stack<T>(
-    arg: &mut T,
-    function: extern "sysv64" fn(&mut T) -> (),
-    stack: *mut u8,
-) {
-    asm!(r#"
-    mov rbp, rsp
-    mov rsp, $2
-
-    call $1
-
-    mov rsp, rbp
-    "#
-    : // Return values
-    : "{rdi}"(arg), "r"(function), "r"(stack) // Arguments
-    : "rbp", "cc", "memory" // Clobbers
-    : "volatile", "intel" // Options
-    );
-}
-
-/// Calls a closure and returns the result
-///
-/// This function is unsafe because it changes the stack pointer to stack.
-/// stack must be suitable to be used as a stack pointer on the target system.
-pub unsafe fn call_closure_with_stack<F, R>(closure: F, stack: *mut u8) -> R
-where
-    F: FnOnce() -> R,
-{
-    extern "sysv64" fn inner<F, R>(data: &mut (ManuallyDrop<F>, MaybeUninit<R>))
-    where
-        F: FnOnce() -> R,
-    {
-        let result = {
-            // Read the closure from context, taking ownership of it
-            let function = unsafe { ManuallyDrop::take(&mut data.0) };
-
-            // Call the closure.
-            // This consumes it and returns the result
-            function()
-        };
-
-        // Write the result into the context
-        data.1 = MaybeUninit::new(result);
-    }
-
-    // The context contains the closure and uninitialized memory for the return value
-    let mut context = (ManuallyDrop::new(closure), MaybeUninit::uninit());
-
-    call_with_stack(
-        &mut context,
-        // We create a new, internal function that does not close over anything
-        // and takes a context reference as its argument
-        inner,
-        stack,
-    );
-
-    // Read the result from the context
-    // No values are in the context anymore afterwards
-    context.1.assume_init()
-}
-
-
 #[entry]
 fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     uefi_services::init(&st).expect_success("Failed to initialize utilities");
@@ -113,6 +50,10 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     st.stdout().reset(false).unwrap().log();
 
     info!("Initialized");
+
+    unsafe {
+        Efer::write(Efer::read() | EferFlags::NO_EXECUTE_ENABLE);
+    };
 
     let kernel = read_kernel(&st);
     info!("Kernel loaded: {} bytes", kernel.len());
@@ -187,7 +128,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .count()
     );
 
-    let stack_top: VirtAddr = {
+    let stack_top: Page<Size4KiB> = {
         let stack_base_frame =
             PhysFrame::<Size4KiB>::from_start_address(PhysAddr::new(
                 st.boot_services()
@@ -235,8 +176,11 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             stack_base.start_address().as_u64()
         );
 
-        stack_top.start_address()
+        stack_top
     };
+
+    let kernel_arguments_box: &'static mut MaybeUninit<KernelArguments> =
+        Box::leak(Box::new(MaybeUninit::zeroed()));
 
     info!("Exiting boot services");
 
@@ -255,20 +199,58 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .map(|frame| frame.start_address().as_u64())
     });
 
-    unsafe {
-        call_closure_with_stack(
-            || {
-                // Call into kernel
-                kernel_entry(KernelArguments {
-                    st,
-                    physical_memory_map,
-                    identity_base,
-                });
+    assert!(unsafe {
+        page_table
+            .get_page_table_mut()
+            .translate_page(stack_top - 1u64)
+            .is_ok()
+    });
+    assert!(unsafe {
+        page_table
+            .get_page_table_mut()
+            .translate_page(Page::<Size4KiB>::containing_address(
+                VirtAddr::from_ptr(kernel_entry as *const ()),
+            ))
+            .is_ok()
+    });
 
-                exit(-2)
-            },
-            stack_top.as_mut_ptr(),
-        )
+    unsafe {
+        pub unsafe fn call_with_stack<T>(
+            arg: *mut T,
+            function: extern "sysv64" fn(*mut T) -> (),
+            stack: *mut u8,
+        ) {
+            asm!(r#"
+                mov rbp, rsp
+
+                and $2, -16
+                mov rsp, $2
+
+                call $1
+
+                mov rsp, rbp
+                "#
+                : // Return values
+                : "{rdi}"(arg), "r"(function), "r"(stack) // Arguments
+                : "rbp", "cc", "memory" // Clobbers
+                : "volatile", "intel" // Options
+            );
+        }
+
+        let kernel_arguments = kernel_arguments_box.write(KernelArguments {
+            st,
+            physical_memory_map,
+            identity_base,
+        }) as *mut KernelArguments;
+        let kernel_arguments = (VirtAddr::from_ptr(kernel_arguments)
+            + identity_base.start_address().as_u64())
+        .as_mut_ptr::<KernelArguments>();
+
+        call_with_stack(
+            kernel_arguments,
+            kernel_entry,
+            stack_top.start_address().as_mut_ptr(),
+        );
     };
 
     exit(-2)

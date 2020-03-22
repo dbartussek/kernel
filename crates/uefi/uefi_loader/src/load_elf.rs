@@ -60,7 +60,7 @@ fn load_elf64<'buffer>(
     buffer
 }
 
-pub type KernelEntrySignature = extern "sysv64" fn(KernelArguments) -> ();
+pub type KernelEntrySignature = extern "sysv64" fn(*mut KernelArguments) -> ();
 
 pub fn load_elf(
     elf_buffer: &[u8],

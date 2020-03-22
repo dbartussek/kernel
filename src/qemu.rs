@@ -58,6 +58,18 @@ pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
         // Add a vga display
         "-vga".to_string(),
         "std".to_string(),
+        //
+        // Debug options:
+        //
+        // Print a log when the cpu resets (for triple faults)
+        "-d".to_string(),
+        "cpu_reset".to_string(),
+        "-D".to_string(),
+        "log.txt".to_string(),
+        //
+        // Accept gdb remote (target remote localhost:1234)
+        "-s".to_string(),
+        // "-S".to_string(),
     ];
 
     let status = std::process::Command::new("qemu-system-x86_64")
