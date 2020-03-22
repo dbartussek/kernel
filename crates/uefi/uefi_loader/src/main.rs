@@ -18,16 +18,26 @@ use kernel_core::{exit, KernelArguments};
 use log::*;
 use page_table::KernelPageTable;
 use page_usage::PageUsage;
+use stack_switch::call_closure_with_stack;
 use uefi::{
     prelude::*,
     table::boot::{AllocateType, MemoryType},
 };
 use x86_64::{
     structures::paging::{
-        Mapper, Page, PageTableFlags, PhysFrame, UnusedPhysFrame,
+        frame::PhysFrameRange, Mapper, Page, PageTableFlags, PhysFrame,
+        Size4KiB, UnusedPhysFrame,
     },
     PhysAddr, VirtAddr,
 };
+
+const KERNEL_ADDRESS_SPACE_BASE: u64 = 0xffff800000000000;
+const KERNEL_REGION_SIZE: u64 = 0x100000000000;
+
+const IDENTITY_BASE: u64 = KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * 0;
+const STACK_BASE: u64 = KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * 1;
+
+const STACK_SIZE_PAGES: u64 = 256;
 
 #[entry]
 fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
@@ -43,7 +53,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     let mut physical_memory_map = memory_map::create_physical_memory_map(&st);
 
     let identity_base =
-        Page::from_start_address(VirtAddr::new(0xffff800000000000)).unwrap();
+        Page::from_start_address(VirtAddr::new(IDENTITY_BASE)).unwrap();
 
     let (_loaded_kernel, kernel_entry) =
         load_elf(&kernel, st.boot_services(), identity_base);
@@ -110,6 +120,57 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .count()
     );
 
+    let stack_top: Page<Size4KiB> = {
+        let stack_base_frame =
+            PhysFrame::<Size4KiB>::from_start_address(PhysAddr::new(
+                st.boot_services()
+                    .allocate_pages(
+                        AllocateType::AnyPages,
+                        MemoryType::LOADER_DATA,
+                        STACK_SIZE_PAGES as usize,
+                    )
+                    .unwrap()
+                    .log(),
+            ))
+            .unwrap();
+        let stack_top_frame = stack_base_frame + STACK_SIZE_PAGES;
+
+        let stack_base =
+            Page::from_start_address(VirtAddr::new(STACK_BASE)).unwrap();
+        let stack_top = stack_base + STACK_SIZE_PAGES;
+
+        info!(
+            "Allocated {} pages for stack, stack_top: 0x{:X}",
+            STACK_SIZE_PAGES,
+            stack_top_frame.start_address().as_u64()
+        );
+
+        page_table.get_manager().map_range(
+            PhysFrameRange {
+                start: stack_base_frame,
+                end: stack_top_frame,
+            },
+            Page::from_start_address(VirtAddr::new(STACK_BASE)).unwrap(),
+            PageTableFlags::PRESENT
+                | PageTableFlags::WRITABLE
+                | PageTableFlags::NO_EXECUTE,
+            false,
+            unsafe {
+                &mut physical_memory_map.external_frame_allocator(
+                    PageUsage::KernelStack { thread: 0 },
+                    |_| uefi_frame_allocator(st.boot_services())(),
+                )
+            },
+        );
+
+        info!(
+            "Mapped stack to 0x{:X}",
+            stack_base.start_address().as_u64()
+        );
+
+        stack_top
+    };
+
     info!("Exiting boot services");
 
     let st = exit_boot_services(image, st, &mut physical_memory_map);
@@ -127,12 +188,21 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .map(|frame| frame.start_address().as_u64())
     });
 
-    // Call into kernel
-    kernel_entry(KernelArguments {
-        st,
-        physical_memory_map,
-        identity_base,
-    });
+    unsafe {
+        call_closure_with_stack(
+            || {
+                // Call into kernel
+                kernel_entry(KernelArguments {
+                    st,
+                    physical_memory_map,
+                    identity_base,
+                });
 
-    exit(-2);
+                exit(-2)
+            },
+            stack_top.start_address().as_mut_ptr(),
+        )
+    };
+
+    exit(-2)
 }

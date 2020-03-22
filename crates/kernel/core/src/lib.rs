@@ -14,18 +14,26 @@ pub struct KernelArguments {
 }
 
 impl KernelArguments {
+    #[inline(never)]
     pub fn init(self) -> Self {
+        #[inline(never)]
+        fn force_move_value<T>(value: T) -> T {
+            value
+        }
+
+        let this = force_move_value(self);
+
         unsafe {
-            page_table::initialize(self.identity_base);
+            page_table::initialize(this.identity_base);
         };
 
         // TODO this is pretty hacky. The arguments should probably not contain any pointers, but physical addresses
         let physical_memory_map = unsafe {
-            let (buffer, base) = self.physical_memory_map.release();
+            let (buffer, base) = this.physical_memory_map.release();
             let pointer = buffer.as_mut_ptr();
 
             let address: VirtAddr = VirtAddr::from_ptr(pointer)
-                + self.identity_base.start_address().as_u64();
+                + this.identity_base.start_address().as_u64();
             let new_pointer = address.as_mut_ptr::<PageUsageRawType>();
 
             let new_buffer = from_raw_parts_mut(new_pointer, buffer.len());
@@ -35,7 +43,7 @@ impl KernelArguments {
 
         KernelArguments {
             physical_memory_map,
-            ..self
+            ..this
         }
     }
 }

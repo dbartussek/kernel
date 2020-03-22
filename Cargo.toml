@@ -15,11 +15,12 @@ members = [
     # FFI crates
     "crates/ffi/page_usage",
     "crates/ffi/page_table",
-    "crates/ffi/ffi_utils"
+    "crates/ffi/ffi_utils",
+    "crates/ffi/stack_switch"
 ]
 
 [profile.release]
-opt-level = "s"
+opt-level = 3
 
 [dependencies]
 structopt = "0.3"

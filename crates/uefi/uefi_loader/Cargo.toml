@@ -17,6 +17,8 @@ qemu-exit = "0.1"
 page_usage = { path = "../../ffi/page_usage" }
 page_table = { path = "../../ffi/page_table" }
 
+stack_switch = { path = "../../ffi/stack_switch" }
+
 kernel_core = { path = "../../kernel/core" }
 
 [dependencies.goblin]
