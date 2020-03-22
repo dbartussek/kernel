@@ -4,6 +4,7 @@
 Cargo.lock
 
 /esp
-/OVMF
+
+# /OVMF
 
 /dis
