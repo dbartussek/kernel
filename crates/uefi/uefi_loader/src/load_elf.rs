@@ -7,6 +7,7 @@ use goblin::elf::{
 use kernel_core::KernelArguments;
 use log::*;
 use uefi::table::boot::BootServices;
+use x86_64::structures::paging::Page;
 
 fn elf_address_range<'lt, It>(headers: It) -> Range<usize>
 where
@@ -64,6 +65,7 @@ pub type KernelEntrySignature = extern "sysv64" fn(KernelArguments) -> ();
 pub fn load_elf(
     elf_buffer: &[u8],
     bt: &BootServices,
+    identity_base: Page,
 ) -> (&'static mut [u8], KernelEntrySignature) {
     match Elf::parse(elf_buffer) {
         Ok(elf) => {
@@ -96,8 +98,12 @@ pub fn load_elf(
 
                 info!("Entry offset 0x{:X}", entry_address);
 
-                &buffer[entry_address] as *const u8
+                &buffer[entry_address] as *const u8 as *const ()
             };
+
+            let entry_pointer =
+                identity_base.start_address() + (entry_pointer as usize as u64);
+            let entry_pointer = entry_pointer.as_ptr::<()>();
 
             info!("Loaded kernel, entry: 0x{:X}", entry_pointer as usize);
 

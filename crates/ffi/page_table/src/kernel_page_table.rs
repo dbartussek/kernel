@@ -3,9 +3,8 @@ use page_usage::{PageUsage, PhysicalMemoryMap};
 use x86_64::{
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
-        frame::PhysFrameRangeInclusive, mapper::PhysToVirt, FrameAllocator,
-        MappedPageTable, Mapper, Page, PageTable, PageTableFlags, PhysFrame,
-        Size4KiB,
+        mapper::PhysToVirt, FrameAllocator, MappedPageTable, Mapper,
+        OffsetPageTable, Page, PageTable, PageTableFlags, PhysFrame, Size4KiB,
     },
     PhysAddr,
 };
@@ -51,7 +50,7 @@ impl KernelPageTable {
         let physical_base = physical_memory_map.base();
         assert_eq!(physical_base.start_address().as_u64(), 0);
 
-        let physical_size = physical_memory_map.pages();
+        let physical_range = physical_memory_map.physical_range();
 
         let current_phys_to_virt =
             identity_mapped_phys_to_virt(current_identity_base);
@@ -86,6 +85,7 @@ impl KernelPageTable {
         let level_4_table =
             unsafe { &mut *current_phys_to_virt.phys_to_virt(root) };
 
+        // Fill the kernel space top level entries
         for entry in level_4_table.iter_mut().skip(512 / 2) {
             let page = allocate_page(
                 &mut physical_memory_map.frame_allocator(
@@ -101,21 +101,19 @@ impl KernelPageTable {
         }
 
         // Create a MappedPageTable using the old identity mapping
-        let intermediate_table = unsafe {
-            MappedPageTable::new(level_4_table, current_phys_to_virt)
-        };
-
-        let mut manager = KernelPageTableManager::new(intermediate_table);
+        let mut manager = KernelPageTableManager::new(unsafe {
+            OffsetPageTable::new(
+                level_4_table,
+                current_identity_base.start_address(),
+            )
+        });
 
         // Map all physical pages to their identity position
         let mut allocator = physical_memory_map
             .frame_allocator(PageUsage::PageTable { reference_count: 0 });
 
         manager.map_range(
-            PhysFrameRangeInclusive {
-                start: physical_base,
-                end: physical_base + physical_size,
-            },
+            physical_range,
             identity_base,
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
             false,

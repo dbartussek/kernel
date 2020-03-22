@@ -19,7 +19,7 @@ pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
         //
         // Allocate memory
         "-m".to_string(),
-        "128M".to_string(),
+        "1G".to_string(),
         //
         // Set up OVMF.
         "-drive".to_string(),

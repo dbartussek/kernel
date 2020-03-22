@@ -5,7 +5,8 @@ mod page_usage;
 pub use self::page_usage::*;
 use ffi_utils::ffi_slice::FfiSliceMut;
 use x86_64::structures::paging::{
-    FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB, UnusedPhysFrame,
+    frame::PhysFrameRange, FrameAllocator, FrameDeallocator, PhysFrame,
+    Size4KiB, UnusedPhysFrame,
 };
 
 #[repr(C)]
@@ -78,6 +79,13 @@ impl<'buf> PhysicalMemoryMap<'buf> {
     #[inline(always)]
     pub fn base(&self) -> PhysFrame {
         self.base
+    }
+
+    pub fn physical_range(&self) -> PhysFrameRange {
+        PhysFrameRange {
+            start: self.base(),
+            end: self.base() + self.pages(),
+        }
     }
 
     pub fn iter<'this>(&'this self) -> impl 'this + Iterator<Item = PageUsage> {
