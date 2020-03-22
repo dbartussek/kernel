@@ -7,11 +7,12 @@ use x86_64::{
         MappedPageTable, Mapper, Page, PageTable, PageTableFlags, PhysFrame,
         Size4KiB,
     },
+    PhysAddr,
 };
 
 #[repr(transparent)]
 pub struct KernelPageTable {
-    root: PhysFrame,
+    root: u64,
 }
 
 pub fn identity_mapped_phys_to_virt(identity_base: Page) -> impl PhysToVirt {
@@ -23,11 +24,17 @@ pub fn identity_mapped_phys_to_virt(identity_base: Page) -> impl PhysToVirt {
 
 impl KernelPageTable {
     pub unsafe fn from_raw_parts(root: PhysFrame) -> Self {
-        KernelPageTable { root }
+        KernelPageTable {
+            root: root.start_address().as_u64(),
+        }
     }
 
     pub fn from_current_page_table() -> Self {
         unsafe { Self::from_raw_parts(Cr3::read().0) }
+    }
+
+    fn root(&self) -> PhysFrame {
+        PhysFrame::from_start_address(PhysAddr::new(self.root)).unwrap()
     }
 
     #[allow(unused_unsafe)]
@@ -115,7 +122,7 @@ impl KernelPageTable {
             &mut allocator,
         );
 
-        KernelPageTable { root }
+        KernelPageTable::from_raw_parts(root)
     }
 
     /// Get the page table
@@ -135,7 +142,7 @@ impl KernelPageTable {
     ) -> MappedPageTable<impl PhysToVirt> {
         let phys_to_virt = identity_mapped_phys_to_virt(identity_base);
 
-        let root = phys_to_virt.phys_to_virt(self.root);
+        let root = phys_to_virt.phys_to_virt(self.root());
 
         MappedPageTable::new(&mut *root, phys_to_virt)
     }
@@ -147,6 +154,6 @@ impl KernelPageTable {
     }
 
     pub unsafe fn activate(&self) {
-        Cr3::write(self.root, Cr3Flags::empty());
+        Cr3::write(self.root(), Cr3Flags::empty());
     }
 }
