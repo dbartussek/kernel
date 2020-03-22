@@ -19,3 +19,7 @@ impl KernelArguments {
         };
     }
 }
+
+pub fn exit(status: i32) -> ! {
+    qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
+}

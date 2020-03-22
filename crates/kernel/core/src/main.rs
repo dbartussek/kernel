@@ -2,7 +2,7 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-use kernel_core::KernelArguments;
+use kernel_core::{exit, KernelArguments};
 use page_table::KernelPageTable;
 
 #[no_mangle]
@@ -20,8 +20,4 @@ pub extern "sysv64" fn _start(mut args: KernelArguments) -> ! {
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     exit(-1);
-}
-
-pub fn exit(status: i32) -> ! {
-    qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
 }
