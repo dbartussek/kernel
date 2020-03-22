@@ -37,6 +37,16 @@ impl<'buf> PhysicalMemoryMap<'buf> {
         }
     }
 
+    pub unsafe fn from_raw_parts(
+        buffer: &'buf mut [PageUsageRawType],
+        base: PhysFrame,
+    ) -> Self {
+        PhysicalMemoryMap {
+            buffer: buffer.into(),
+            base,
+        }
+    }
+
     pub fn set(
         &mut self,
         frame: PhysFrame,
@@ -61,8 +71,8 @@ impl<'buf> PhysicalMemoryMap<'buf> {
     ///
     /// This does not deallocate the buffer
     #[inline(always)]
-    pub fn release_buffer(self) -> &'buf mut [PageUsageRawType] {
-        self.buffer.into()
+    pub fn release(self) -> (&'buf mut [PageUsageRawType], PhysFrame) {
+        (self.buffer.into(), self.base)
     }
 
     #[inline(always)]
