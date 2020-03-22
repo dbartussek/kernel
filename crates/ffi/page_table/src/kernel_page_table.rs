@@ -38,13 +38,10 @@ impl KernelPageTable {
 
     #[allow(unused_unsafe)]
     pub unsafe fn initialize_and_create(
-        identity_base: Page,
-
         physical_memory_map: &mut PhysicalMemoryMap,
-
         current_identity_base: Page,
     ) -> Self {
-        crate::initialize(identity_base);
+        crate::initialize(current_identity_base);
 
         // TODO support physical bases other than 0
         let physical_base = physical_memory_map.base();
@@ -114,7 +111,7 @@ impl KernelPageTable {
 
         manager.map_range(
             physical_range,
-            identity_base,
+            current_identity_base,
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
             false,
             &mut allocator,

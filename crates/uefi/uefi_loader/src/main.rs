@@ -47,14 +47,15 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     let st = exit_boot_services(image, st, &mut physical_memory_map);
 
+    // Create page table
     let mut page_table = unsafe {
         KernelPageTable::initialize_and_create(
-            Page::from_start_address(VirtAddr::new(0)).unwrap(),
             &mut physical_memory_map,
             Page::from_start_address(VirtAddr::new(0)).unwrap(),
         )
     };
 
+    // Add high half mapping
     if identity_base.start_address().as_u64() != 0 {
         page_table.get_manager().map_range(
             physical_memory_map.physical_range(),
@@ -66,6 +67,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         );
     }
 
+    // Activate the new page table
     unsafe {
         page_table.activate();
     };
@@ -78,6 +80,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
             .map(|frame| frame.start_address().as_u64())
     });
 
+    // Call into kernel
     kernel_entry(KernelArguments {
         st,
         physical_memory_map,
