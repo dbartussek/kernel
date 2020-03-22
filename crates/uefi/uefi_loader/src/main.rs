@@ -14,7 +14,7 @@ use crate::{
     load_elf::load_elf, memory_map::exit_boot_services,
     read_kernel::read_kernel,
 };
-use kernel_core::KernelArguments;
+use kernel_core::{exit, KernelArguments};
 use log::*;
 use page_table::KernelPageTable;
 use page_usage::PageUsage;
@@ -134,5 +134,5 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         identity_base,
     });
 
-    panic!("Kernel returned");
+    exit(-2);
 }
