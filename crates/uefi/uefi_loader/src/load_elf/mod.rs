@@ -1,4 +1,8 @@
-use crate::alloc_utils::allocate_pages_byte_size;
+pub mod relocation;
+
+use crate::{
+    alloc_utils::allocate_pages_byte_size, load_elf::relocation::relocations,
+};
 use core::ops::Range;
 use goblin::elf::{
     program_header::{ProgramHeader, PT_LOAD},
@@ -7,7 +11,7 @@ use goblin::elf::{
 use kernel_core::KernelArguments;
 use log::*;
 use uefi::table::boot::BootServices;
-use x86_64::structures::paging::Page;
+use x86_64::{structures::paging::Page, VirtAddr};
 
 fn elf_address_range<'lt, It>(headers: It) -> Range<usize>
 where
@@ -32,6 +36,8 @@ fn range_size(r: &Range<usize>) -> usize {
 fn load_elf64<'buffer>(
     elf: &Elf,
     elf_buffer: &[u8],
+
+    load_base: VirtAddr,
     buffer: &'buffer mut [u8],
 ) -> &'buffer mut [u8] {
     let address_range = elf_address_range(&elf.program_headers);
@@ -55,6 +61,19 @@ fn load_elf64<'buffer>(
 
         (&mut buffer[memory_base..(memory_base + size)])
             .copy_from_slice(&elf_buffer[file_range]);
+    }
+
+    info!("elf.dynrelas.len() = {}", elf.dynrelas.len());
+    info!("elf.dynrels.len() = {}", elf.dynrels.len());
+    info!("elf.pltrelocs.len() = {}", elf.pltrelocs.len());
+    info!("elf.shdr_relocs.len() = {}", elf.shdr_relocs.len());
+
+    for relocation in relocations(elf) {
+        relocation.apply(
+            VirtAddr::new(address_range.start as u64),
+            load_base,
+            buffer,
+        );
     }
 
     buffer
@@ -91,7 +110,13 @@ pub fn load_elf(
             let buffer = allocate_pages_byte_size(bt, binary_size).unwrap();
             info!("Allocated: 0x{:X}", buffer.as_ptr() as usize);
 
-            let buffer = load_elf64(&elf, elf_buffer, buffer);
+            let buffer = load_elf64(
+                &elf,
+                elf_buffer,
+                identity_base.start_address()
+                    + (buffer.as_ptr() as usize as u64),
+                buffer,
+            );
 
             let entry_pointer = {
                 let entry_address = (elf.entry as usize) - address_range.start;
