@@ -8,17 +8,14 @@
 extern crate alloc;
 
 pub mod alloc_utils;
-pub mod load_elf;
 pub mod memory_map;
 pub mod read_kernel;
 
-use crate::{
-    load_elf::load_elf, memory_map::exit_boot_services,
-    read_kernel::read_kernel,
-};
+use crate::{memory_map::exit_boot_services, read_kernel::read_kernel};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
-use kernel_core::{exit, KernelArguments};
+use elf_loader::parameters::AdHocLoadParameters;
+use kernel_core::{exit, KernelArguments, KernelEntrySignature};
 use log::*;
 use page_table::KernelPageTable;
 use page_usage::PageUsage;
@@ -29,8 +26,8 @@ use uefi::{
 use x86_64::{
     registers::{control::EferFlags, model_specific::Efer},
     structures::paging::{
-        frame::PhysFrameRange, Mapper, Page, PageTableFlags, PhysFrame,
-        Size4KiB, UnusedPhysFrame,
+        frame::PhysFrameRange, page::PageRange, Mapper, Page, PageTableFlags,
+        PhysFrame, Size4KiB, UnusedPhysFrame,
     },
     PhysAddr, VirtAddr,
 };
@@ -55,16 +52,60 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         Efer::write(Efer::read() | EferFlags::NO_EXECUTE_ENABLE);
     };
 
-    let kernel = read_kernel(&st);
-    info!("Kernel loaded: {} bytes", kernel.len());
-
-    let mut physical_memory_map = memory_map::create_physical_memory_map(&st);
-
     let identity_base =
         Page::from_start_address(VirtAddr::new(IDENTITY_BASE)).unwrap();
 
-    let (_loaded_kernel, kernel_entry) =
-        load_elf(&kernel, st.boot_services(), identity_base);
+    let mut physical_memory_map = memory_map::create_physical_memory_map(&st);
+
+    let kernel = {
+        let kernel_data = read_kernel(&st);
+        info!("Kernel loaded: {} bytes", kernel_data.len());
+
+        let kernel = elf_loader::load(
+            &kernel_data,
+            AdHocLoadParameters {
+                allocate: |size| {
+                    let address = st
+                        .boot_services()
+                        .allocate_pages(
+                            AllocateType::AnyPages,
+                            MemoryType::LOADER_DATA,
+                            size,
+                        )
+                        .ok()?
+                        .log();
+
+                    let memory = VirtAddr::new(address);
+                    let virtual_pages = memory + IDENTITY_BASE;
+
+                    let memory =
+                        Page::<Size4KiB>::from_start_address(memory).unwrap();
+                    let virtual_pages =
+                        Page::<Size4KiB>::from_start_address(virtual_pages)
+                            .unwrap();
+
+                    let size = size as u64;
+
+                    Some((
+                        PageRange {
+                            start: memory,
+                            end: memory + size,
+                        },
+                        PageRange {
+                            start: virtual_pages,
+                            end: virtual_pages + size,
+                        },
+                    ))
+                },
+                deallocate: |_pages| unimplemented!(),
+                set_permissions: |_pages, _permissions| unimplemented!(),
+            },
+        );
+
+        kernel
+    };
+
+    info!("Kernel entry: {:x?}", kernel.entry.as_ptr::<()>());
 
     fn uefi_frame_allocator<'lt>(
         bt: &'lt BootServices,
@@ -209,7 +250,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         page_table
             .get_page_table_mut()
             .translate_page(Page::<Size4KiB>::containing_address(
-                VirtAddr::from_ptr(kernel_entry as *const ()),
+                VirtAddr::from_ptr(kernel.entry.as_ptr::<()>()),
             ))
             .is_ok()
     });
@@ -245,6 +286,10 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         let kernel_arguments = (VirtAddr::from_ptr(kernel_arguments)
             + identity_base.start_address().as_u64())
         .as_mut_ptr::<KernelArguments>();
+
+        let kernel_entry = core::mem::transmute::<*mut (), KernelEntrySignature>(
+            kernel.entry.as_mut_ptr(),
+        );
 
         call_with_stack(
             kernel_arguments,

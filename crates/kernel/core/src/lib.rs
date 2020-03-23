@@ -5,6 +5,8 @@ use page_usage::{PageUsageRawType, PhysicalMemoryMap};
 use uefi::table::{Runtime, SystemTable};
 use x86_64::{structures::paging::Page, VirtAddr};
 
+pub type KernelEntrySignature = extern "sysv64" fn(*mut KernelArguments) -> ();
+
 #[repr(C)]
 pub struct KernelArguments {
     pub st: SystemTable<Runtime>,

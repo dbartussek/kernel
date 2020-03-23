@@ -16,7 +16,9 @@ members = [
     # FFI crates
     "crates/ffi/page_usage",
     "crates/ffi/page_table",
-    "crates/ffi/ffi_utils"
+    "crates/ffi/ffi_utils",
+
+    "crates/libs/elf_loader"
 ]
 
 [profile.release]

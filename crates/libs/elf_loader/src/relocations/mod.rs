@@ -8,7 +8,7 @@ use goblin::elf::{
 use x86_64::VirtAddr;
 
 #[derive(Copy, Clone, Debug)]
-pub struct Relocation {
+struct Relocation {
     data: Reloc,
 }
 
@@ -48,12 +48,21 @@ impl Relocation {
     }
 }
 
-pub fn relocations<'lt>(
-    elf: &'lt Elf,
-) -> impl 'lt + Iterator<Item = Relocation> {
+fn relocations<'lt>(elf: &'lt Elf) -> impl 'lt + Iterator<Item = Relocation> {
     elf.dynrelas
         .iter()
         .chain(elf.dynrels.iter())
         .chain(elf.pltrelocs.iter())
         .map(|entry| Relocation::new(entry))
+}
+
+pub fn apply_relocations(
+    elf: &Elf,
+    mut buffer: &mut [u8],
+    elf_base: VirtAddr,
+    load_base: VirtAddr,
+) {
+    for relocation in relocations(elf) {
+        relocation.apply(elf_base, load_base, &mut buffer);
+    }
 }
