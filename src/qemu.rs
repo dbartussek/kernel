@@ -1,14 +1,17 @@
-use crate::{build::build, parameters::Parameters};
+use crate::{build::build, cli::QemuArgs, parameters::Parameters};
 use std::{error::Error, path::Path};
 
-pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
+pub fn run_qemu(
+    parameters: &Parameters,
+    args: &QemuArgs,
+) -> Result<(), Box<dyn Error>> {
     build(parameters)?;
 
     let ovmf = Path::new("OVMF");
     let ovmf_code = ovmf.join("OVMF_CODE.fd");
     let ovmf_vars = ovmf.join("OVMF_VARS.fd");
 
-    let qemu_args = vec![
+    let mut qemu_args = vec![
         //
         // Disable default devices
         "-nodefaults".to_string(),
@@ -69,8 +72,13 @@ pub fn run_qemu(parameters: &Parameters) -> Result<(), Box<dyn Error>> {
         //
         // Accept gdb remote (target remote localhost:1234)
         "-s".to_string(),
-        // "-S".to_string(),
     ];
+
+    if args.gdb {
+        // Wait for gdb to attach.
+        // This will break execution on the first instruction
+        qemu_args.push("-S".to_string());
+    }
 
     let status = std::process::Command::new("qemu-system-x86_64")
         .args(qemu_args)

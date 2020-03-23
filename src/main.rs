@@ -24,8 +24,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         Command::Build(_) => {
             build(&parameters)?;
         },
-        Command::Run(_) => {
-            run_qemu(&parameters)?;
+        Command::Run(args) => {
+            run_qemu(&parameters, &args)?;
         },
         Command::Disassemble(_) => {
             build(&parameters)?;
