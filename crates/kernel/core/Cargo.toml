@@ -8,6 +8,8 @@ edition = "2018"
 page_usage = { path = "../../ffi/page_usage" }
 page_table = { path = "../../ffi/page_table" }
 
+serial_io = { path = "../serial_io" }
+
 uefi = "0.4.2"
 
 qemu-exit = "0.1"
