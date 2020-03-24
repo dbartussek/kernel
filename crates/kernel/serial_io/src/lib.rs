@@ -1,5 +1,7 @@
 #![no_std]
 
+pub mod logger;
+
 use core::fmt::Write;
 ///! With thanks to
 ///! https://os.phil-opp.com/testing/#serial-port

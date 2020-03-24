@@ -1,6 +1,7 @@
 #![no_std]
 
 use core::slice::from_raw_parts_mut;
+use log::*;
 use page_usage::{PageUsageRawType, PhysicalMemoryMap};
 use uefi::table::{Runtime, SystemTable};
 use x86_64::{structures::paging::Page, VirtAddr};
@@ -42,6 +43,11 @@ impl KernelArguments {
 
             PhysicalMemoryMap::from_raw_parts(new_buffer, base)
         };
+
+        serial_io::logger::init();
+        log::set_max_level(LevelFilter::Info);
+
+        info!("KernelArguments initialized");
 
         KernelArguments {
             physical_memory_map,
