@@ -56,7 +56,7 @@ pub fn run_qemu(
         //
         // Connect serial 2 to file
         "-serial".to_string(),
-        "file:serial2_log".to_string(),
+        "file:serial2.log".to_string(),
         //
         // Enable the exit signal
         "-device".to_string(),
