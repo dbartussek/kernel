@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(abi_efiapi)]
-#![feature(asm)]
 #![feature(maybe_uninit_extra)]
 
 #[macro_use]
@@ -13,6 +12,7 @@ pub mod read_kernel;
 
 use crate::{memory_map::exit_boot_services, read_kernel::read_kernel};
 use alloc::boxed::Box;
+use call_with_stack::call_with_stack;
 use core::mem::MaybeUninit;
 use elf_loader::parameters::AdHocLoadParameters;
 use kernel_core::{exit, KernelArguments, KernelEntrySignature};
@@ -256,28 +256,6 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     });
 
     unsafe {
-        pub unsafe fn call_with_stack<T>(
-            arg: *mut T,
-            function: extern "sysv64" fn(*mut T) -> (),
-            stack: *mut u8,
-        ) {
-            asm!(r#"
-                mov rbp, rsp
-
-                and $2, -16
-                mov rsp, $2
-
-                call $1
-
-                mov rsp, rbp
-                "#
-                : // Return values
-                : "{rdi}"(arg), "r"(function), "r"(stack) // Arguments
-                : "rbp", "cc", "memory" // Clobbers
-                : "volatile", "intel" // Options
-            );
-        }
-
         let kernel_arguments = kernel_arguments_box.write(KernelArguments {
             st,
             physical_memory_map,

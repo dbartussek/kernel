@@ -20,3 +20,4 @@ page_table = { path = "../../ffi/page_table" }
 kernel_core = { path = "../../kernel/core" }
 
 elf_loader = { path = "../../libs/elf_loader" }
+call_with_stack = { path = "../../libs/call_with_stack" }

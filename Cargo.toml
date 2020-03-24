@@ -18,7 +18,8 @@ members = [
     "crates/ffi/page_table",
     "crates/ffi/ffi_utils",
 
-    "crates/libs/elf_loader"
+    "crates/libs/elf_loader",
+    "crates/libs/call_with_stack"
 ]
 
 [profile.release]
