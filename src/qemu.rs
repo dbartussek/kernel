@@ -50,9 +50,13 @@ pub fn run_qemu(
                 .expect("Cannot represent esp_directory as str")
         ),
         //
-        // Connect serial to stdio
+        // Connect serial 1 to stdio
         "-serial".to_string(),
         "stdio".to_string(),
+        //
+        // Connect serial 2 to file
+        "-serial".to_string(),
+        "file:serial2_log".to_string(),
         //
         // Enable the exit signal
         "-device".to_string(),
