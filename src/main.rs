@@ -1,11 +1,15 @@
-pub mod build;
 pub mod cli;
 pub mod disassemble;
 pub mod parameters;
 pub mod qemu;
+pub mod xtool;
 
-use crate::{cli::Command, parameters::Parameters, qemu::run_qemu};
-use build::build;
+use crate::{
+    cli::Command,
+    parameters::Parameters,
+    qemu::run_qemu,
+    xtool::{build::build, clippy::clippy},
+};
 use disassemble::disassemble;
 use std::{error::Error, path::Path};
 use structopt::StructOpt;
@@ -23,6 +27,9 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     match command {
         Command::Build(_) => {
             build(&parameters)?;
+        },
+        Command::Clippy(_) => {
+            clippy(&parameters)?;
         },
         Command::Run(args) => {
             run_qemu(&parameters, &args)?;

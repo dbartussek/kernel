@@ -20,6 +20,9 @@ pub enum Command {
     #[structopt(about = "Build the kernel image")]
     Build(BuildArgs),
 
+    #[structopt(about = "Run clippy")]
+    Clippy(BuildArgs),
+
     #[structopt(about = "Build kernel and run in qemu")]
     Run(QemuArgs),
 
@@ -30,7 +33,9 @@ pub enum Command {
 impl Command {
     pub fn get_build_args(&self) -> Option<&BuildArgs> {
         Some(match self {
-            Command::Build(b) | Command::Disassemble(b) => b,
+            Command::Build(b)
+            | Command::Disassemble(b)
+            | Command::Clippy(b) => b,
             Command::Run(q) => &q.build,
         })
     }
