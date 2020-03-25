@@ -1,0 +1,8 @@
+[package]
+name = "allocators"
+version = "0.1.0"
+authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+spin = "0.5"

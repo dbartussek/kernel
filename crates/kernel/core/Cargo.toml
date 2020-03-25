@@ -10,6 +10,8 @@ page_table = { path = "../../ffi/page_table" }
 
 serial_io = { path = "../serial_io" }
 
+allocators = { path = "../../libs/allocators" }
+
 uefi = "0.4.2"
 
 qemu-exit = "0.1"

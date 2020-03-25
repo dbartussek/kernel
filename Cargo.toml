@@ -19,7 +19,8 @@ members = [
     "crates/ffi/ffi_utils",
 
     "crates/libs/elf_loader",
-    "crates/libs/call_with_stack"
+    "crates/libs/call_with_stack",
+    "crates/libs/allocators"
 ]
 
 [profile.release]
