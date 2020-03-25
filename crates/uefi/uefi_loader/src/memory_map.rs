@@ -21,18 +21,15 @@ pub fn create_memory_map_vec(st: &SystemTable<Boot>) -> Vec<MemoryDescriptor> {
     loop {
         buffer.resize(bt.memory_map_size(), 0);
 
-        match bt.memory_map(buffer.as_mut_slice()) {
-            Ok(r) => {
-                let (_, iter) = r.log();
+        if let Ok(r) = bt.memory_map(buffer.as_mut_slice()) {
+            let (_, iter) = r.log();
 
-                let mut memory_info: Vec<MemoryDescriptor> =
-                    iter.copied().collect();
+            let mut memory_info: Vec<MemoryDescriptor> =
+                iter.copied().collect();
 
-                memory_info.sort_unstable_by_key(|it| it.phys_start);
+            memory_info.sort_unstable_by_key(|it| it.phys_start);
 
-                return memory_info;
-            },
-            _ => (),
+            return memory_info;
         }
     }
 }

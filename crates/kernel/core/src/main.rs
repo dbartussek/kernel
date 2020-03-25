@@ -11,8 +11,8 @@ pub fn exit(status: i32) -> ! {
 }
 
 #[no_mangle]
-pub extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
-    let args = unsafe { args.read() };
+pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
+    let args = args.read();
 
     serial_println!("Kernel starting");
 

@@ -32,10 +32,12 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-const KERNEL_ADDRESS_SPACE_BASE: u64 = 0xffff800000000000;
-const KERNEL_REGION_SIZE: u64 = 0x100000000000;
+const KERNEL_ADDRESS_SPACE_BASE: u64 = 0xffff_8000_0000_0000;
+const KERNEL_REGION_SIZE: u64 = 0x1000_0000_0000;
 
+#[allow(clippy::erasing_op)]
 const IDENTITY_BASE: u64 = KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * 0;
+#[allow(clippy::identity_op)]
 const STACK_BASE: u64 = KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * 1;
 
 const STACK_SIZE_PAGES: u64 = 256;
@@ -61,7 +63,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         let kernel_data = read_kernel(&st);
         info!("Kernel loaded: {} bytes", kernel_data.len());
 
-        let kernel = elf_loader::load(
+        elf_loader::load(
             &kernel_data,
             AdHocLoadParameters {
                 allocate: |size| {
@@ -100,9 +102,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
                 deallocate: |_pages| unimplemented!(),
                 set_permissions: |_pages, _permissions| unimplemented!(),
             },
-        );
-
-        kernel
+        )
     };
 
     info!("Kernel entry: {:x?}", kernel.entry.as_ptr::<()>());

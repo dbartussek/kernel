@@ -5,8 +5,8 @@ use core::{
     mem::{ManuallyDrop, MaybeUninit},
 };
 
-pub type RawCallFunctionSignature = extern "sysv64" fn(*mut c_void);
-pub type RawJumpFunctionSignature = extern "sysv64" fn(*mut c_void) -> !;
+pub type RawCallFunctionSignature = unsafe extern "sysv64" fn(*mut c_void);
+pub type RawJumpFunctionSignature = unsafe extern "sysv64" fn(*mut c_void) -> !;
 
 extern "sysv64" {
     pub fn call_with_stack_raw(
@@ -22,8 +22,8 @@ extern "sysv64" {
     ) -> !;
 }
 
-pub type CallFunctionSignature<T> = extern "sysv64" fn(*mut T);
-pub type JumpFunctionSignature<T> = extern "sysv64" fn(*mut T) -> !;
+pub type CallFunctionSignature<T> = unsafe extern "sysv64" fn(*mut T);
+pub type JumpFunctionSignature<T> = unsafe extern "sysv64" fn(*mut T) -> !;
 
 pub unsafe fn call_with_stack<T>(
     arg: *mut T,
@@ -63,15 +63,16 @@ pub unsafe fn call_closure_with_stack<F, R>(closure: F, stack: *mut u8) -> R
 where
     F: FnOnce() -> R,
 {
-    extern "sysv64" fn inner<F, R>(data: *mut (ManuallyDrop<F>, MaybeUninit<R>))
-    where
+    unsafe extern "sysv64" fn inner<F, R>(
+        data: *mut (ManuallyDrop<F>, MaybeUninit<R>),
+    ) where
         F: FnOnce() -> R,
     {
-        let data = unsafe { &mut *data };
+        let data = &mut *data;
 
         let result = {
             // Read the closure from context, taking ownership of it
-            let function = unsafe { ManuallyDrop::take(&mut data.0) };
+            let function = ManuallyDrop::take(&mut data.0);
 
             // Call the closure.
             // This consumes it and returns the result
