@@ -11,6 +11,7 @@ members = [
 
     # Kernel code
     "crates/kernel/core",
+    "crates/kernel/parameters",
     "crates/kernel/serial_io",
 
     # FFI crates

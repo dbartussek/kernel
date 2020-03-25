@@ -2,9 +2,13 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-use kernel_core::{exit, KernelArguments};
 use log::*;
+use parameters::KernelArguments;
 use serial_io::*;
+
+pub fn exit(status: i32) -> ! {
+    qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
+}
 
 #[no_mangle]
 pub extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {

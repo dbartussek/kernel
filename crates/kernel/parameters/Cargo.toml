@@ -1,23 +1,16 @@
 [package]
-name = "kernel_core"
+name = "parameters"
 version = "0.1.0"
 authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-parameters = { path = "../parameters" }
-
 page_usage = { path = "../../ffi/page_usage" }
 page_table = { path = "../../ffi/page_table" }
 
 serial_io = { path = "../serial_io" }
 
-allocators = { path = "../../libs/allocators" }
+log = "0.4"
 
 uefi = "0.4.2"
-
-qemu-exit = "0.1"
-
 x86_64 = "0.9"
-
-log = "0.4"

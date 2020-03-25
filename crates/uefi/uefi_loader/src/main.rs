@@ -15,10 +15,10 @@ use alloc::boxed::Box;
 use call_with_stack::call_with_stack;
 use core::mem::MaybeUninit;
 use elf_loader::parameters::AdHocLoadParameters;
-use kernel_core::{exit, KernelArguments, KernelEntrySignature};
 use log::*;
 use page_table::KernelPageTable;
 use page_usage::PageUsage;
+use parameters::{KernelArguments, KernelEntrySignature};
 use uefi::{
     prelude::*,
     table::boot::{AllocateType, MemoryType},
@@ -277,4 +277,8 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     };
 
     exit(-2)
+}
+
+pub fn exit(status: i32) -> ! {
+    qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
 }
