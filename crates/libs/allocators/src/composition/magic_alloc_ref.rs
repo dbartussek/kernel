@@ -5,33 +5,33 @@ use core::{
 };
 use spin::Mutex;
 
-/// Create an AllocRef from a guarded Allocator pointer
+/// Create an AllocRef from a guarded Allocator reference
 #[derive(Copy, Clone)]
-pub struct MagicAllocRef<A>
+pub struct MagicAllocRef<'a, A>
 where
     A: Allocator,
 {
-    allocator: NonNull<Mutex<A>>,
+    allocator: &'a Mutex<A>,
 }
 
-impl<A> MagicAllocRef<A>
+impl<'a, A> MagicAllocRef<'a, A>
 where
     A: Allocator,
 {
-    pub unsafe fn new(allocator: NonNull<Mutex<A>>) -> Self {
+    pub fn new(allocator: &'a Mutex<A>) -> Self {
         MagicAllocRef { allocator }
     }
 
-    pub unsafe fn allocator<F, R>(&self, function: F) -> R
+    pub fn allocator<F, R>(&self, function: F) -> R
     where
         F: FnOnce(&mut A) -> R,
     {
-        let mut lock = self.allocator.as_ref().lock();
+        let mut lock = self.allocator.lock();
         function(&mut lock)
     }
 }
 
-unsafe impl<A> AllocRef for MagicAllocRef<A>
+unsafe impl<'a, A> AllocRef for MagicAllocRef<'a, A>
 where
     A: Allocator,
 {
@@ -39,7 +39,7 @@ where
         &mut self,
         layout: Layout,
     ) -> Result<(NonNull<u8>, usize), AllocErr> {
-        unsafe { self.allocator(|a| a.alloc(layout)) }
+        self.allocator(|a| a.alloc(layout))
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
@@ -47,11 +47,11 @@ where
     }
 }
 
-impl<A> OwnerCheck for MagicAllocRef<A>
+impl<'a, A> OwnerCheck for MagicAllocRef<'a, A>
 where
     A: Allocator + OwnerCheck,
 {
     fn is_owner(&self, ptr: NonNull<u8>, layout: Layout) -> bool {
-        unsafe { self.allocator(|a| a.is_owner(ptr, layout)) }
+        self.allocator(|a| a.is_owner(ptr, layout))
     }
 }
