@@ -16,6 +16,9 @@ pub(crate) fn identity_base() -> Page {
     Page::containing_address(VirtAddr::new(base as u64))
 }
 
+/// # Safety
+/// Every time the system wants to write to a physical page, it uses identity_base.
+/// You better be sure this invariant is upheld or there will be nasty bugs.
 pub unsafe fn initialize(identity_base: Page) {
     let previous = IDENTITY_BASE.swap(
         identity_base.start_address().as_u64() as usize,

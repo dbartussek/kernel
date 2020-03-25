@@ -132,6 +132,9 @@ impl KernelPageTable {
     }
 
     /// Get the page table
+    ///
+    /// # Safety
+    /// This is unsafe because it allows for arbitrary modification of the page table.
     pub unsafe fn get_page_table_mut(
         &mut self,
     ) -> MappedPageTable<impl PhysToVirt> {
@@ -140,8 +143,10 @@ impl KernelPageTable {
 
     /// Get the page table
     ///
+    /// # Safety
     /// This is unsafe because it only works correctly if
-    /// identity_base has a full mapping of all physical pages
+    /// identity_base has a full mapping of all physical pages.
+    /// It also allows for arbitrary modification of the page table
     pub unsafe fn get_page_table_mut_in_different_identity_mapping(
         &mut self,
         identity_base: Page,
@@ -159,6 +164,11 @@ impl KernelPageTable {
         KernelPageTableManager::new(unsafe { self.get_page_table_mut() })
     }
 
+    /// Write this page table to Cr3
+    ///
+    /// # Safety
+    /// You can break any and all pointers by using this.
+    /// You better be sure all old references are still valid after changing the page table
     pub unsafe fn activate(&self) {
         Cr3::write(self.root(), Cr3Flags::empty());
     }
