@@ -13,6 +13,12 @@ impl<const ARRAY_SIZE: usize> BitData<{ ARRAY_SIZE }> {
     }
 }
 
+impl<const ARRAY_SIZE: usize> Default for BitData<{ ARRAY_SIZE }> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct BitSet<const SIZE: usize>(
@@ -27,16 +33,16 @@ impl<const SIZE: usize> Default for BitSet<{ SIZE }> {
 
 impl<const SIZE: usize> BitSet<{ SIZE }> {
     pub fn new() -> Self {
-        BitSet(BitData::new())
+        BitSet(BitData::default())
     }
 
     #[inline(always)]
-    pub const fn len(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         SIZE
     }
 
     fn get_group_for(&self, index: usize) -> Option<RawType> {
-        if index < self.len() {
+        if index < self.capacity() {
             Some(unsafe { *(self.0).0.get_unchecked(index / RAW_TYPE_BITS) })
         } else {
             None
@@ -44,7 +50,7 @@ impl<const SIZE: usize> BitSet<{ SIZE }> {
     }
 
     fn get_group_for_mut(&mut self, index: usize) -> Option<&mut RawType> {
-        if index < self.len() {
+        if index < self.capacity() {
             Some(unsafe { (self.0).0.get_unchecked_mut(index / RAW_TYPE_BITS) })
         } else {
             None

@@ -21,6 +21,7 @@ pub struct FixedBitMap<const BLOCK_SIZE: usize, const CAPACITY: usize> {
 impl<const BLOCK_SIZE: usize, const CAPACITY: usize>
     FixedBitMap<{ BLOCK_SIZE }, { CAPACITY }>
 {
+    #[allow(clippy::uninit_assumed_init)]
     pub fn new() -> Self {
         FixedBitMap {
             bitmap: Default::default(),
@@ -34,6 +35,14 @@ impl<const BLOCK_SIZE: usize, const CAPACITY: usize>
 
     fn end_pointer(&self) -> *const u8 {
         self.storage.last().unwrap() as *const _ as *const u8
+    }
+}
+
+impl<const BLOCK_SIZE: usize, const CAPACITY: usize> Default
+    for FixedBitMap<{ BLOCK_SIZE }, { CAPACITY }>
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

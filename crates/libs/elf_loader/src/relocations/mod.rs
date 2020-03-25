@@ -53,7 +53,7 @@ fn relocations<'lt>(elf: &'lt Elf) -> impl 'lt + Iterator<Item = Relocation> {
         .iter()
         .chain(elf.dynrels.iter())
         .chain(elf.pltrelocs.iter())
-        .map(|entry| Relocation::new(entry))
+        .map(Relocation::new)
 }
 
 pub fn apply_relocations(

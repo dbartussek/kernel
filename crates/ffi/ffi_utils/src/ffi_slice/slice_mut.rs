@@ -56,6 +56,11 @@ impl<'lt, T> FfiSliceMut<'lt, T> {
     pub fn len(&self) -> usize {
         self.data.len
     }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<'lt, T> Into<&'lt mut [T]> for FfiSliceMut<'lt, T> {
