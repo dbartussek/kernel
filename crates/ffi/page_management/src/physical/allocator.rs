@@ -57,7 +57,8 @@ where
 {
     /// Create a new FrameAllocator with external decision making
     ///
-    /// This is unsafe, because you better trust this external function to know what its doing
+    /// # Safety
+    /// You better trust this external function to know what its doing
     pub unsafe fn new(
         map: &'map mut PhysicalMemoryMap<'buf>,
         usage: PageUsage,

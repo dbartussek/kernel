@@ -25,12 +25,16 @@ pub fn identity_mapped_phys_to_virt(identity_base: Page) -> impl PhysToVirt {
 }
 
 impl KernelPageTable {
+    /// # Safety
+    /// This creates a KernelPageTable from an arbitrary Physical Frame.
+    /// This is only valid if a KernelPageTable has been constructed there
     pub unsafe fn from_raw_parts(root: PhysFrame) -> Self {
         KernelPageTable {
             root: root.start_address().as_u64(),
         }
     }
 
+    /// Read the currently active page table
     pub fn current_page_table() -> Self {
         unsafe { Self::from_raw_parts(Cr3::read().0) }
     }

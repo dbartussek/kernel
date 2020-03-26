@@ -6,7 +6,7 @@ use crate::physical::{
     page_usage::{PageUsage, PageUsageRawType},
 };
 use ffi_utils::ffi_slice::FfiSliceMut;
-use spin::Mutex;
+use spin::{Mutex, MutexGuard};
 use x86_64::structures::paging::{
     frame::PhysFrameRange, FrameDeallocator, PhysFrame, Size4KiB,
     UnusedPhysFrame,
@@ -22,7 +22,14 @@ pub struct PhysicalMemoryMap<'buf> {
 }
 
 impl<'buf> PhysicalMemoryMap<'buf> {
-    pub fn new(
+    /// Constructs a new memory map
+    ///
+    /// This will initialize all entries to value.
+    ///
+    /// In practice, this function is intended to only be called by the bootloader,
+    /// which somehow finds out what the physical memory looks like
+    /// and passes this on to the os.
+    pub fn create(
         buffer: &'buf mut [PageUsageRawType],
         base: PhysFrame,
         value: PageUsage,
@@ -39,6 +46,11 @@ impl<'buf> PhysicalMemoryMap<'buf> {
         }
     }
 
+    /// Creates a memory map from the raw innards
+    ///
+    /// # Safety
+    /// This is only safe if the parts have been obtained by calling release
+    /// on a PhysicalMemoryMap instance.
     pub unsafe fn from_raw_parts(
         buffer: &'buf mut [PageUsageRawType],
         base: PhysFrame,
@@ -47,6 +59,14 @@ impl<'buf> PhysicalMemoryMap<'buf> {
             buffer: buffer.into(),
             base,
         }
+    }
+
+    /// Consume self and return the underlying buffer
+    ///
+    /// This does not deallocate the buffer
+    #[inline(always)]
+    pub fn release(self) -> (&'buf mut [PageUsageRawType], PhysFrame) {
+        (self.buffer.into(), self.base)
     }
 
     pub fn set(
@@ -67,14 +87,6 @@ impl<'buf> PhysicalMemoryMap<'buf> {
         self.buffer()
             .get((frame - self.base()) as usize)
             .map(|v| PageUsage::from_raw(*v).unwrap())
-    }
-
-    /// Consume self and return the underlying buffer
-    ///
-    /// This does not deallocate the buffer
-    #[inline(always)]
-    pub fn release(self) -> (&'buf mut [PageUsageRawType], PhysFrame) {
-        (self.buffer.into(), self.base)
     }
 
     #[inline(always)]
@@ -131,7 +143,8 @@ impl<'buf> PhysicalMemoryMap<'buf> {
         PhysicalMemoryMapFrameAllocator::new(self, usage)
     }
 
-    /// This is unsafe, because you better trust this external function to know what its doing
+    /// # Safety
+    /// You better trust this external function to know what its doing
     pub unsafe fn external_frame_allocator<'this, A>(
         &'this mut self,
         usage: PageUsage,
@@ -149,12 +162,38 @@ impl<'buf> PhysicalMemoryMap<'buf> {
 }
 
 impl PhysicalMemoryMap<'static> {
+    /// # Safety
+    /// You must initialize PhysicalMemoryMap before any system tries to interact with it.
+    /// And if you mess it up, the system will have no idea what is going on.
+    /// This is also not thread safe.
+    /// In general, once the system is up and running, you should not mess with this.
     pub unsafe fn register_global(self) {
+        assert!(PHYSICAL_MEMORY_MAP.is_none());
         PHYSICAL_MEMORY_MAP = Some(Mutex::new(self));
     }
 
-    pub fn global() -> spin::MutexGuard<'static, Self> {
+    /// Take the global memory map away.
+    ///
+    /// # Safety
+    /// Any system that needs the physical memory map will no longer work while it is taken away.
+    /// In addition, this is not thread safe.
+    /// In general, once the system is up and running, you should not mess with this.
+    pub unsafe fn take_global() -> Self {
+        PHYSICAL_MEMORY_MAP.take().unwrap().into_inner()
+    }
+
+    /// Lock the global memory map
+    pub fn global() -> MutexGuard<'static, Self> {
         unsafe { PHYSICAL_MEMORY_MAP.as_ref().unwrap().lock() }
+    }
+
+    /// Try to lock the global memory map
+    ///
+    /// This will return None if someone else is holding the lock
+    pub fn try_global() -> Option<MutexGuard<'static, Self>> {
+        unsafe {
+            PHYSICAL_MEMORY_MAP.as_ref().unwrap().try_lock()
+        }
     }
 }
 

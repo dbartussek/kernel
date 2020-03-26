@@ -106,7 +106,7 @@ pub fn create_physical_memory_map(
     .unwrap();
 
     let mut map =
-        PhysicalMemoryMap::new(buffer, physical_base, PageUsage::Unusable);
+        PhysicalMemoryMap::create(buffer, physical_base, PageUsage::Unusable);
 
     for memory in memory_info.iter() {
         enter_descriptor_into_memory_map(*memory, &mut map);
