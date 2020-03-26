@@ -1,17 +1,19 @@
-#![no_std]
-
-pub mod allocator;
-mod page_usage;
-
-pub use self::page_usage::*;
-use crate::allocator::{
-    ExternalPhysicalMemoryMapFrameAllocator, PhysicalMemoryMapFrameAllocator,
+use crate::physical::{
+    allocator::{
+        ExternalPhysicalMemoryMapFrameAllocator,
+        PhysicalMemoryMapFrameAllocator,
+    },
+    page_usage::{PageUsage, PageUsageRawType},
 };
 use ffi_utils::ffi_slice::FfiSliceMut;
+use spin::Mutex;
 use x86_64::structures::paging::{
     frame::PhysFrameRange, FrameDeallocator, PhysFrame, Size4KiB,
     UnusedPhysFrame,
 };
+
+static mut PHYSICAL_MEMORY_MAP: Option<Mutex<PhysicalMemoryMap<'static>>> =
+    None;
 
 #[repr(C)]
 pub struct PhysicalMemoryMap<'buf> {
@@ -143,6 +145,16 @@ impl<'buf> PhysicalMemoryMap<'buf> {
         assert_ne!(usage, PageUsage::Unusable);
 
         ExternalPhysicalMemoryMapFrameAllocator::new(self, usage, allocator)
+    }
+}
+
+impl PhysicalMemoryMap<'static> {
+    pub unsafe fn register_global(self) {
+        PHYSICAL_MEMORY_MAP = Some(Mutex::new(self));
+    }
+
+    pub fn global() -> spin::MutexGuard<'static, Self> {
+        unsafe { PHYSICAL_MEMORY_MAP.as_ref().unwrap().lock() }
     }
 }
 

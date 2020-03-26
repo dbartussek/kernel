@@ -16,8 +16,9 @@ use call_with_stack::call_with_stack;
 use core::mem::MaybeUninit;
 use elf_loader::parameters::AdHocLoadParameters;
 use log::*;
-use page_table::KernelPageTable;
-use page_usage::PageUsage;
+use page_management::{
+    page_table::KernelPageTable, physical::page_usage::PageUsage,
+};
 use parameters::{KernelArguments, KernelEntrySignature};
 use uefi::{
     prelude::*,

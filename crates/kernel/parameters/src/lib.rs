@@ -2,7 +2,9 @@
 
 use core::slice::from_raw_parts_mut;
 use log::*;
-use page_usage::{PageUsageRawType, PhysicalMemoryMap};
+use page_management::physical::{
+    map::PhysicalMemoryMap, page_usage::PageUsageRawType,
+};
 use uefi::table::{Runtime, SystemTable};
 use x86_64::{structures::paging::Page, VirtAddr};
 
@@ -17,42 +19,39 @@ pub struct KernelArguments {
     pub identity_base: Page,
 }
 
+pub struct InitializedKernelArguments {
+    pub st: SystemTable<Runtime>,
+}
+
 impl KernelArguments {
     #[inline(never)]
-    pub fn init(self) -> Self {
-        #[inline(never)]
-        fn force_move_value<T>(value: T) -> T {
-            value
+    pub fn init(self) -> InitializedKernelArguments {
+        unsafe {
+            page_management::page_table::initialize(self.identity_base);
         }
 
-        let this = force_move_value(self);
-
+        // TODO self is pretty hacky. The arguments should probably not contain any pointers, but physical addresses
         unsafe {
-            page_table::initialize(this.identity_base);
-        };
-
-        // TODO this is pretty hacky. The arguments should probably not contain any pointers, but physical addresses
-        let physical_memory_map = unsafe {
-            let (buffer, base) = this.physical_memory_map.release();
+            let (buffer, base) = self.physical_memory_map.release();
             let pointer = buffer.as_mut_ptr();
 
             let address: VirtAddr = VirtAddr::from_ptr(pointer)
-                + this.identity_base.start_address().as_u64();
+                + self.identity_base.start_address().as_u64();
             let new_pointer = address.as_mut_ptr::<PageUsageRawType>();
 
             let new_buffer = from_raw_parts_mut(new_pointer, buffer.len());
 
-            PhysicalMemoryMap::from_raw_parts(new_buffer, base)
-        };
+            let physical_memory_map =
+                PhysicalMemoryMap::from_raw_parts(new_buffer, base);
+
+            physical_memory_map.register_global();
+        }
 
         serial_io::logger::init();
         log::set_max_level(LevelFilter::Info);
 
         info!("KernelArguments initialized");
 
-        KernelArguments {
-            physical_memory_map,
-            ..this
-        }
+        InitializedKernelArguments { st: self.st }
     }
 }

@@ -1,4 +1,4 @@
-use crate::{PageUsage, PhysicalMemoryMap};
+use crate::physical::{map::PhysicalMemoryMap, page_usage::PageUsage};
 use x86_64::structures::paging::{
     FrameAllocator, PhysFrame, Size4KiB, UnusedPhysFrame,
 };

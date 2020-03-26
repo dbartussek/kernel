@@ -7,8 +7,7 @@ edition = "2018"
 [dependencies]
 parameters = { path = "../parameters" }
 
-page_usage = { path = "../../ffi/page_usage" }
-page_table = { path = "../../ffi/page_table" }
+page_management = { path = "../../ffi/page_management" }
 
 serial_io = { path = "../serial_io" }
 

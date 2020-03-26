@@ -3,6 +3,7 @@
 
 use core::panic::PanicInfo;
 use log::*;
+use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
 use serial_io::*;
 
@@ -21,6 +22,16 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     let _args = args.init();
 
     info!("Kernel initialized");
+
+    {
+        let memory_map = PhysicalMemoryMap::global();
+        assert_ne!(memory_map.pages(), 0);
+        info!(
+            "Physical memory pages: 0x{:X}; Available: 0x{:X}",
+            memory_map.pages(),
+            memory_map.iter().filter(|page| page.is_empty()).count()
+        );
+    }
 
     exit(0);
 }

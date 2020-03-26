@@ -1,5 +1,7 @@
-use crate::{identity_base, manager::KernelPageTableManager};
-use page_usage::{PageUsage, PhysicalMemoryMap};
+use crate::{
+    page_table::{identity_base, manager::KernelPageTableManager},
+    physical::{map::PhysicalMemoryMap, page_usage::PageUsage},
+};
 use x86_64::{
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
@@ -47,7 +49,7 @@ impl KernelPageTable {
         A: FnMut(&PhysicalMemoryMap) -> Option<UnusedPhysFrame>,
     {
         unsafe {
-            crate::initialize(current_identity_base);
+            crate::page_table::initialize(current_identity_base);
         }
 
         // TODO support physical bases other than 0

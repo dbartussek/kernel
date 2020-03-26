@@ -1,7 +1,10 @@
 use crate::alloc_utils::{allocate_pages_array, allocate_pages_byte_size};
 use alloc::vec::Vec;
 use core::ops::Range;
-use page_usage::{PageUsage, PageUsageRawType, PhysicalMemoryMap};
+use page_management::physical::{
+    map::PhysicalMemoryMap,
+    page_usage::{PageUsage, PageUsageRawType},
+};
 use uefi::{
     table::{
         boot::{MemoryDescriptor, MemoryType},
