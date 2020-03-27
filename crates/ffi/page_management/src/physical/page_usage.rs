@@ -29,19 +29,11 @@ pub enum PageUsage {
     Empty,
     Unusable,
 
-    /// Reference count is number of references - 1
-    PageTableRoot {
-        reference_count: u32,
-    },
+    PageTableRoot,
 
-    /// Reference count is number of references - 1
-    PageTable {
-        reference_count: u32,
-    },
+    PageTable,
 
-    KernelStack {
-        thread: u32,
-    },
+    KernelStack { thread: u32 },
 
     Custom(u32),
 }
@@ -63,17 +55,11 @@ impl PageUsage {
                 PageUsageRawType::from_category(Self::TAG_UNUSABLE)
             },
 
-            PageUsage::PageTableRoot { reference_count } => {
-                PageUsageRawType::from_category_and_data(
-                    Self::TAG_PAGE_TABLE_ROOT,
-                    reference_count,
-                )
+            PageUsage::PageTableRoot => {
+                PageUsageRawType::from_category(Self::TAG_PAGE_TABLE_ROOT)
             },
-            PageUsage::PageTable { reference_count } => {
-                PageUsageRawType::from_category_and_data(
-                    Self::TAG_PAGE_TABLE,
-                    reference_count,
-                )
+            PageUsage::PageTable => {
+                PageUsageRawType::from_category(Self::TAG_PAGE_TABLE)
             },
 
             PageUsage::KernelStack { thread } => {
@@ -94,12 +80,8 @@ impl PageUsage {
             Self::TAG_EMPTY => PageUsage::Empty,
             Self::TAG_UNUSABLE => PageUsage::Unusable,
 
-            Self::TAG_PAGE_TABLE_ROOT => PageUsage::PageTableRoot {
-                reference_count: value.data(),
-            },
-            Self::TAG_PAGE_TABLE => PageUsage::PageTable {
-                reference_count: value.data(),
-            },
+            Self::TAG_PAGE_TABLE_ROOT => PageUsage::PageTableRoot,
+            Self::TAG_PAGE_TABLE => PageUsage::PageTable,
 
             Self::TAG_KERNEL_STACK => PageUsage::KernelStack {
                 thread: value.data(),

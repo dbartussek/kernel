@@ -10,3 +10,5 @@ ffi_utils = { path = "../ffi_utils" }
 x86_64 = "0.9"
 
 spin = "0.5"
+
+log = "0.4"

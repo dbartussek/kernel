@@ -27,7 +27,9 @@ impl KernelArguments {
     #[inline(never)]
     pub fn init(self) -> InitializedKernelArguments {
         unsafe {
-            page_management::page_table::initialize(self.identity_base);
+            page_management::page_table::initialize_identity_base(
+                self.identity_base,
+            );
         }
 
         // TODO self is pretty hacky. The arguments should probably not contain any pointers, but physical addresses

@@ -191,9 +191,7 @@ impl PhysicalMemoryMap<'static> {
     ///
     /// This will return None if someone else is holding the lock
     pub fn try_global() -> Option<MutexGuard<'static, Self>> {
-        unsafe {
-            PHYSICAL_MEMORY_MAP.as_ref().unwrap().try_lock()
-        }
+        unsafe { PHYSICAL_MEMORY_MAP.as_ref().unwrap().try_lock() }
     }
 }
 
