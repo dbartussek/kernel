@@ -5,6 +5,7 @@
 #![feature(const_fn)]
 #![feature(ptr_offset_from)]
 #![feature(leading_trailing_ones)]
+#![feature(alloc_layout_extra)]
 
 pub mod allocators;
 pub mod composition;

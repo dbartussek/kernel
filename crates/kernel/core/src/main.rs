@@ -30,7 +30,7 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
         info!(
             "Physical memory pages: 0x{:X}; Available: 0x{:X}",
             memory_map.pages(),
-            memory_map.iter().filter(|page| page.is_empty()).count()
+            memory_map.empty_frames(),
         );
     }
 

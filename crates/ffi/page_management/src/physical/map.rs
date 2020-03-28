@@ -122,6 +122,10 @@ impl<'buf> PhysicalMemoryMap<'buf> {
             .map(|v| PageUsage::from_raw(*v).unwrap())
     }
 
+    pub fn empty_frames(&self) -> usize {
+        self.iter().filter(|frame| frame.is_empty()).count()
+    }
+
     pub fn find_unused_frame(&self) -> Option<UnusedPhysFrame> {
         self.iter()
             .enumerate()

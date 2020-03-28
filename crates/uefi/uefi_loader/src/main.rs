@@ -130,6 +130,7 @@ where
 
     let mut kernel_page_table = ManagedPageTable::from_raw_frame(root);
     let mut manager = kernel_page_table.modify(ModificationFlags {
+        user_space: true,
         identity: true,
         kernel_stack: false,
         kernel_heap: false,

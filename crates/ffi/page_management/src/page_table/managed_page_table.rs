@@ -7,8 +7,9 @@ use spin::{Mutex, MutexGuard};
 use x86_64::{
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
-        page::PageRange, FrameAllocator, Mapper, OffsetPageTable, Page,
-        PageTable, PageTableFlags, PhysFrame, Size4KiB, UnusedPhysFrame,
+        mapper::TranslateResult, page::PageRange, FrameAllocator, Mapper,
+        MapperAllSizes, OffsetPageTable, Page, PageTable, PageTableFlags,
+        PhysFrame, Size4KiB, UnusedPhysFrame,
     },
     PhysAddr, VirtAddr,
 };
@@ -35,6 +36,8 @@ const IDENTITY_END: u64 = KERNEL_ADDRESS_SPACE_BASE
 const KERNEL_HEAP_REGION: u64 = 6;
 pub const KERNEL_HEAP_BASE: u64 =
     KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * KERNEL_HEAP_REGION;
+pub const KERNEL_HEAP_END: u64 =
+    KERNEL_ADDRESS_SPACE_BASE + KERNEL_REGION_SIZE * (KERNEL_HEAP_REGION + 1);
 
 const KERNEL_STACK_REGION: u64 = 7;
 pub const KERNEL_STACK_BASE: u64 =
@@ -60,6 +63,19 @@ pub fn is_in_user_space(address: VirtAddr) -> bool {
 }
 pub fn is_in_kernel_space(address: VirtAddr) -> bool {
     address.as_u64() >= KERNEL_ADDRESS_SPACE_BASE
+}
+
+pub fn kernel_heap_range() -> PageRange<Size4KiB> {
+    PageRange {
+        start: Page::<Size4KiB>::from_start_address(VirtAddr::new(
+            KERNEL_HEAP_BASE,
+        ))
+        .unwrap(),
+        end: Page::<Size4KiB>::from_start_address(VirtAddr::new(
+            KERNEL_HEAP_END,
+        ))
+        .unwrap(),
+    }
 }
 
 /// A standard page table
@@ -125,6 +141,27 @@ impl ManagedPageTable {
         )
     }
 
+    /// This function gives out a mutable reference to the page table from
+    /// an immutable ManagedPageTable
+    ///
+    /// This should only be used for the mapper_from_ref function or similar.
+    /// You may not write to it.
+    unsafe fn page_table_mut_from_ref(&self) -> &mut PageTable {
+        &mut *identity_page(self.frame()).start_address().as_mut_ptr()
+    }
+
+    /// This function creates an OffsetPageTable from an immutable reference.
+    ///
+    /// # Safety
+    /// This is kind of evil, because you __could__ use it to write to the page table.
+    /// Pinky promise you will only read from it!
+    unsafe fn mapper_from_ref(&self) -> OffsetPageTable {
+        OffsetPageTable::new(
+            self.page_table_mut_from_ref(),
+            identity_base().start_address(),
+        )
+    }
+
     pub fn create_offspring(&self) -> Option<Self> {
         let mut physical_memory_map = PhysicalMemoryMap::global();
         let root_frame = physical_memory_map
@@ -163,16 +200,37 @@ impl ManagedPageTable {
         unimplemented!()
     }
 
+    /// Make modifications to this page table
+    ///
+    /// The kernel mapping is shared between all page tables and will be locked if necessary
     pub fn modify(&mut self, flags: ModificationFlags) -> ModificationManager {
         ModificationManager {
+            user_space: flags.user_space,
             guards: MUTEXES.lock(flags),
             page_table: self,
         }
+    }
+
+    /// Make modifications to the kernel mappings
+    ///
+    /// This uses the currently active page table and works because all page tables share their
+    /// kernel mappings
+    pub fn modify_global<F, T>(flags: ModificationFlags, f: F) -> T
+    where
+        F: FnOnce(ModificationManager) -> T,
+    {
+        let mut global = unsafe { Self::read_global() };
+
+        f(global.modify(ModificationFlags {
+            user_space: false,
+            ..flags
+        }))
     }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Default, Debug)]
 pub struct ModificationFlags {
+    pub user_space: bool,
     pub identity: bool,
     pub kernel_stack: bool,
     pub kernel_heap: bool,
@@ -224,6 +282,7 @@ static MUTEXES: ModificationMutexes = ModificationMutexes {
 
 /// A struct that makes sure the correct Mutexes are held to make the modifications safe(ish)
 pub struct ModificationManager<'page_table> {
+    user_space: bool,
     guards: ModificationGuards<'static>,
     page_table: &'page_table mut ManagedPageTable,
 }
@@ -335,6 +394,11 @@ impl<'page_table> ModificationManager<'page_table> {
             return Err(());
         }
 
+        if is_in_user_space(start) && !self.user_space {
+            error!("Attempting to modify user space, but it is not allowed");
+            return Err(());
+        }
+
         if is_in_kernel_space(start) {
             if start_region != end_region {
                 error!(
@@ -377,5 +441,48 @@ impl<'page_table> ModificationManager<'page_table> {
         }
 
         Ok(())
+    }
+
+    fn is_free_page(&self, page: Page<Size4KiB>) -> bool {
+        match unsafe {
+            self.page_table
+                .mapper_from_ref()
+                .translate(page.start_address())
+        } {
+            TranslateResult::PageNotMapped => true,
+            _ => false,
+        }
+    }
+
+    pub fn find_free_pages_in_range(
+        &self,
+        range: PageRange<Size4KiB>,
+        desired_size: u64,
+    ) -> Option<PageRange<Size4KiB>> {
+        let range_size = range.end - range.start;
+
+        if range_size < desired_size {
+            return None;
+        }
+
+        self.is_valid_range(range).ok()?;
+
+        'start_index_loop: for start in 0..(range_size - desired_size) {
+            let start_page = range.start + start;
+
+            for index in 0..desired_size {
+                if !self.is_free_page(start_page + index) {
+                    continue 'start_index_loop;
+                }
+            }
+
+            // If all the pages we checked above are free, we can report that we found a free range
+            return Some(PageRange {
+                start: start_page,
+                end: start_page + range_size,
+            });
+        }
+
+        None
     }
 }
