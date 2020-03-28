@@ -1,5 +1,5 @@
 use core::{
-    alloc::{AllocErr, AllocRef, Layout},
+    alloc::{AllocErr, AllocRef, GlobalAlloc, Layout},
     ptr::NonNull,
 };
 use page_management::{
@@ -13,7 +13,7 @@ use x86_64::structures::paging::{
 };
 
 #[derive(Default, Copy, Clone, Debug)]
-struct KernelHeapPages;
+pub struct KernelHeapPages;
 
 fn layout_to_page_layout(layout: Layout) -> Result<(Layout, usize), AllocErr> {
     let page_size = Size4KiB::SIZE as usize;
@@ -27,6 +27,20 @@ fn layout_to_page_layout(layout: Layout) -> Result<(Layout, usize), AllocErr> {
     assert_eq!(layout.size() % page_size, 0);
 
     Ok((layout, size))
+}
+
+unsafe impl GlobalAlloc for KernelHeapPages {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        AllocRef::alloc(&mut KernelHeapPages, layout)
+            .map(|r| r.0.as_ptr())
+            .unwrap_or(core::ptr::null_mut())
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        if let Some(ptr) = NonNull::new(ptr) {
+            AllocRef::dealloc(&mut KernelHeapPages, ptr, layout);
+        }
+    }
 }
 
 unsafe impl AllocRef for KernelHeapPages {
@@ -68,8 +82,10 @@ unsafe impl AllocRef for KernelHeapPages {
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+        use log::*;
+
         let (layout, pages) = layout_to_page_layout(layout).unwrap();
 
-        unimplemented!()
+        warn!("Leaking {:?}; {} pages; Ptr: {:X?}", layout, pages, ptr);
     }
 }
