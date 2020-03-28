@@ -34,6 +34,7 @@ pub enum PageUsage {
     PageTable,
 
     KernelStack { thread: u32 },
+    KernelHeap,
 
     Custom(u32),
 }
@@ -41,10 +42,11 @@ pub enum PageUsage {
 impl PageUsage {
     const TAG_CUSTOM: u32 = core::u32::MAX;
     const TAG_EMPTY: u32 = 0;
-    const TAG_KERNEL_STACK: u32 = 4;
-    const TAG_PAGE_TABLE: u32 = 3;
-    const TAG_PAGE_TABLE_ROOT: u32 = 2;
     const TAG_UNUSABLE: u32 = 1;
+    const TAG_PAGE_TABLE_ROOT: u32 = 2;
+    const TAG_PAGE_TABLE: u32 = 3;
+    const TAG_KERNEL_STACK: u32 = 4;
+    const TAG_KERNEL_HEAP: u32 = 5;
 
     pub fn to_raw(self) -> Option<PageUsageRawType> {
         Some(match self {
@@ -68,6 +70,9 @@ impl PageUsage {
                     thread,
                 )
             },
+            PageUsage::KernelHeap => {
+                PageUsageRawType::from_category(Self::TAG_KERNEL_HEAP)
+            },
 
             PageUsage::Custom(i) => {
                 PageUsageRawType::from_category_and_data(Self::TAG_CUSTOM, i)
@@ -86,6 +91,7 @@ impl PageUsage {
             Self::TAG_KERNEL_STACK => PageUsage::KernelStack {
                 thread: value.data(),
             },
+            Self::TAG_KERNEL_HEAP => PageUsage::KernelHeap,
 
             Self::TAG_CUSTOM => PageUsage::Custom(value.data()),
 

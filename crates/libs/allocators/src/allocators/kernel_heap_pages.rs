@@ -2,8 +2,11 @@ use core::{
     alloc::{AllocErr, AllocRef, Layout},
     ptr::NonNull,
 };
-use page_management::page_table::managed_page_table::{
-    kernel_heap_range, ManagedPageTable, ModificationFlags,
+use page_management::{
+    page_table::managed_page_table::{
+        kernel_heap_range, ManagedPageTable, ModificationFlags,
+    },
+    physical::page_usage::PageUsage,
 };
 use x86_64::structures::paging::{
     page::PageRange, PageSize, PageTableFlags, Size4KiB,
@@ -49,6 +52,7 @@ unsafe impl AllocRef for KernelHeapPages {
                         pages,
                         PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
                         true,
+                        PageUsage::KernelHeap,
                     )
                 }
                 .map_err(|_| AllocErr)

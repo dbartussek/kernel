@@ -402,6 +402,32 @@ impl<'page_table> ModificationManager<'page_table> {
         )
     }
 
+    pub unsafe fn map_blank_pages(
+        &mut self,
+        start_page: Page<Size4KiB>,
+        length: usize,
+        flags: PageTableFlags,
+        flush: bool,
+        usage: PageUsage,
+    ) -> Result<(), ()> {
+        self.map_pages_impl(
+            start_page,
+            |physical_map| {
+                physical_map
+                    .frame_allocator(usage)
+                    .allocate_frame()
+                    .unwrap()
+                    .frame()
+            },
+            length,
+            flags,
+            flush,
+            |physical_map| {
+                (*physical_map).frame_allocator(PageUsage::PageTable)
+            },
+        )
+    }
+
     fn is_valid_range(&self, range: PageRange<Size4KiB>) -> Result<(), ()> {
         info!("{:X?}", &range);
 
