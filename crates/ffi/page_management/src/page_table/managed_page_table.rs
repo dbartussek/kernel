@@ -2,6 +2,7 @@ use crate::{
     page_table::{identity_base, identity_page},
     physical::{map::PhysicalMemoryMap, page_usage::PageUsage},
 };
+use core::cell::RefCell;
 use log::*;
 use spin::{Mutex, MutexGuard};
 use x86_64::{
@@ -288,37 +289,43 @@ pub struct ModificationManager<'page_table> {
 }
 
 impl<'page_table> ModificationManager<'page_table> {
-    unsafe fn map_pages_impl<It, A>(
+    unsafe fn map_pages_impl<It, A, Af>(
         &mut self,
         start_page: Page<Size4KiB>,
-        frames: It,
+        mut frames: It,
+        frame_count: usize,
         flags: PageTableFlags,
         flush: bool,
-        mut frame_allocator: A,
+        mut frame_allocator_function: Af,
     ) -> Result<(), ()>
     where
-        It: ExactSizeIterator + Iterator<Item = PhysFrame>,
+        It: FnMut(&mut PhysicalMemoryMap) -> PhysFrame,
         A: FrameAllocator<Size4KiB>,
+        Af: FnMut(*mut PhysicalMemoryMap<'static>) -> A,
     {
-        let frame_count = frames.len() as u64;
+        let frame_count = frame_count as u64;
 
         self.is_valid_range(PageRange {
             start: start_page,
             end: start_page + frame_count,
         })?;
 
+        let physical_map = RefCell::new(PhysicalMemoryMap::global());
+
         let mut mapper = self.page_table.mapper();
 
-        for (index, frame) in frames
-            .enumerate()
-            .map(|(index, frame)| (index as u64, frame))
+        for (index, frame) in (0..frame_count)
+            .map(|index| (index, frames(&mut physical_map.borrow_mut())))
         {
+            let mut physical_map = physical_map.borrow_mut();
+            let physical_map: &mut PhysicalMemoryMap = &mut physical_map;
+
             let flusher = mapper
                 .map_to(
                     start_page + index,
                     UnusedPhysFrame::new(frame),
                     flags,
-                    &mut frame_allocator,
+                    &mut frame_allocator_function(physical_map as *mut _),
                 )
                 .unwrap();
             if flush {
@@ -334,36 +341,65 @@ impl<'page_table> ModificationManager<'page_table> {
     pub unsafe fn map_pages<It>(
         &mut self,
         start_page: Page<Size4KiB>,
-        frames: It,
+        mut frames: It,
         flags: PageTableFlags,
         flush: bool,
     ) -> Result<(), ()>
     where
         It: ExactSizeIterator + Iterator<Item = PhysFrame>,
     {
-        let mut physical_map = PhysicalMemoryMap::global();
-        let allocator = physical_map.frame_allocator(PageUsage::PageTable);
-
-        self.map_pages_impl(start_page, frames, flags, flush, allocator)
+        let frame_count = frames.len();
+        self.map_pages_impl(
+            start_page,
+            |_| frames.next().unwrap(),
+            frame_count,
+            flags,
+            flush,
+            |physical_map| {
+                (*physical_map).frame_allocator(PageUsage::PageTable)
+            },
+        )
     }
 
     pub unsafe fn map_pages_external_frame_allocator<It, A>(
         &mut self,
         start_page: Page<Size4KiB>,
-        frames: It,
+        mut frames: It,
         flags: PageTableFlags,
         flush: bool,
-        allocate: A,
+        mut allocate: A,
     ) -> Result<(), ()>
     where
         It: ExactSizeIterator + Iterator<Item = PhysFrame>,
         A: FnMut(&PhysicalMemoryMap) -> Option<UnusedPhysFrame>,
     {
-        let mut physical_map = PhysicalMemoryMap::global();
-        let allocator = physical_map
-            .external_frame_allocator(PageUsage::PageTable, allocate);
+        let frame_count = frames.len();
+        self.map_pages_impl(
+            start_page,
+            |_| frames.next().unwrap(),
+            frame_count,
+            flags,
+            flush,
+            move |physical_map| {
+                // This is evil. Don't do this.
+                //
+                // It is currently not possible to define:
+                // A function, that takes a generic function
+                // to which it will pass a local variable as a mutable reference
+                // and the generic function returns some value that wraps this reference
+                //
+                // So as a workaround, I erase all lifetime information.
+                // Tread carefully.
+                let physical_map: &'static mut PhysicalMemoryMap =
+                    &mut *physical_map;
+                let allocate = (&mut allocate) as *mut A;
 
-        self.map_pages_impl(start_page, frames, flags, flush, allocator)
+                physical_map.external_frame_allocator(
+                    PageUsage::PageTable,
+                    &mut *allocate,
+                )
+            },
+        )
     }
 
     fn is_valid_range(&self, range: PageRange<Size4KiB>) -> Result<(), ()> {
