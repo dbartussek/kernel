@@ -9,8 +9,11 @@ use page_management::{
     },
     physical::page_usage::PageUsage,
 };
-use x86_64::structures::paging::{
-    page::PageRange, PageSize, PageTableFlags, Size4KiB,
+use x86_64::{
+    structures::paging::{
+        page::PageRange, Page, PageSize, PageTableFlags, Size4KiB,
+    },
+    VirtAddr,
 };
 
 #[derive(Default, Copy, Clone, Debug)]
@@ -56,7 +59,7 @@ unsafe impl AllocRef for KernelHeapPages {
                 kernel_heap: true,
                 ..Default::default()
             },
-            |mut manager| -> Result<PageRange<Size4KiB>, AllocErr> {
+            move |mut manager| -> Result<PageRange<Size4KiB>, AllocErr> {
                 let desired_pages = manager
                     .find_free_pages_in_range(
                         kernel_heap_range(),
@@ -87,10 +90,24 @@ unsafe impl AllocRef for KernelHeapPages {
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        use log::*;
+        let (_, pages) = layout_to_page_layout(layout).unwrap();
+        let start = Page::<Size4KiB>::from_start_address(VirtAddr::from_ptr(
+            ptr.as_ptr(),
+        ))
+        .unwrap();
+        let range = PageRange {
+            start,
+            end: start + (pages as u64),
+        };
 
-        let (layout, pages) = layout_to_page_layout(layout).unwrap();
-
-        warn!("Leaking {:?}; {} pages; Ptr: {:X?}", layout, pages, ptr);
+        ManagedPageTable::modify_global(
+            ModificationFlags {
+                kernel_heap: true,
+                ..Default::default()
+            },
+            move |mut manager| {
+                manager.unmap_pages_and_release(range, true).unwrap();
+            },
+        );
     }
 }

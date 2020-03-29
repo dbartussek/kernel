@@ -8,9 +8,9 @@ use spin::{Mutex, MutexGuard};
 use x86_64::{
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
-        mapper::TranslateResult, page::PageRange, FrameAllocator, Mapper,
-        MapperAllSizes, OffsetPageTable, Page, PageTable, PageTableFlags,
-        PhysFrame, Size4KiB, UnusedPhysFrame,
+        mapper::TranslateResult, page::PageRange, FrameAllocator,
+        FrameDeallocator, Mapper, MapperAllSizes, OffsetPageTable, Page,
+        PageTable, PageTableFlags, PhysFrame, Size4KiB, UnusedPhysFrame,
     },
     PhysAddr, VirtAddr,
 };
@@ -426,6 +426,47 @@ impl<'page_table> ModificationManager<'page_table> {
                 (*physical_map).frame_allocator(PageUsage::PageTable)
             },
         )
+    }
+
+    pub unsafe fn unmap_pages<D>(
+        &mut self,
+        range: PageRange<Size4KiB>,
+        flush: bool,
+        mut deallocator: D,
+    ) -> Result<(), ()>
+    where
+        D: FnMut(&mut PhysicalMemoryMap, Option<PhysFrame<Size4KiB>>),
+    {
+        self.is_valid_range(range.clone())?;
+
+        let mut physical_map = PhysicalMemoryMap::global();
+        let mut mapper = self.page_table.mapper();
+
+        for page in range {
+            let result = mapper.unmap(page).map(|(frame, flusher)| {
+                if flush {
+                    flusher.flush();
+                } else {
+                    flusher.ignore();
+                }
+                frame
+            });
+            deallocator(&mut physical_map, result.ok());
+        }
+
+        Ok(())
+    }
+
+    pub unsafe fn unmap_pages_and_release(
+        &mut self,
+        range: PageRange<Size4KiB>,
+        flush: bool,
+    ) -> Result<(), ()> {
+        self.unmap_pages(range, flush, |physical_map, frame| {
+            if let Some(frame) = frame {
+                physical_map.deallocate_frame(UnusedPhysFrame::new(frame));
+            }
+        })
     }
 
     fn is_valid_range(&self, range: PageRange<Size4KiB>) -> Result<(), ()> {
