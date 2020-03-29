@@ -516,6 +516,7 @@ impl<'page_table> ModificationManager<'page_table> {
         &self,
         range: PageRange<Size4KiB>,
         desired_size: u64,
+        page_alignment: u64,
     ) -> Option<PageRange<Size4KiB>> {
         let range_size = range.end - range.start;
 
@@ -527,6 +528,13 @@ impl<'page_table> ModificationManager<'page_table> {
 
         'start_index_loop: for start in 0..(range_size - desired_size) {
             let start_page = range.start + start;
+
+            // This can also be implemented more efficiently
+            let page_index = start_page
+                - Page::from_start_address(VirtAddr::new(0)).unwrap();
+            if page_index % page_alignment != 0 {
+                continue 'start_index_loop;
+            }
 
             // This is not optimal, we should skip forwards.
             // But I want to replace this anyways, start the search at a random address, etc,

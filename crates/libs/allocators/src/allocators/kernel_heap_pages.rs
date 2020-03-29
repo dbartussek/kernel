@@ -2,6 +2,7 @@ use core::{
     alloc::{AllocErr, AllocRef, GlobalAlloc, Layout},
     ptr::NonNull,
 };
+use num_integer::Integer;
 use page_management::{
     page_table::managed_page_table::{
         kernel_heap_range, ManagedPageTable, ModificationFlags,
@@ -19,7 +20,7 @@ fn layout_to_page_layout(layout: Layout) -> Result<(Layout, usize), AllocErr> {
     let page_size = Size4KiB::SIZE as usize;
 
     let layout = layout
-        .align_to(page_size)
+        .align_to(layout.align().div_ceil(&page_size) * page_size)
         .map_err(|_| AllocErr)?
         .pad_to_align();
     let size = layout.size() / page_size;
@@ -57,7 +58,11 @@ unsafe impl AllocRef for KernelHeapPages {
             },
             |mut manager| -> Result<PageRange<Size4KiB>, AllocErr> {
                 let desired_pages = manager
-                    .find_free_pages_in_range(kernel_heap_range(), pages as u64)
+                    .find_free_pages_in_range(
+                        kernel_heap_range(),
+                        pages as u64,
+                        ((layout.align() as u64) / Size4KiB::SIZE).max(1),
+                    )
                     .ok_or(AllocErr)?;
 
                 unsafe {

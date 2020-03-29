@@ -11,4 +11,6 @@ x86_64 = "0.9"
 
 log = "0.4"
 
+num-integer = { version = "0.1", default-features = false }
+
 page_management = { path = "../../ffi/page_management" }

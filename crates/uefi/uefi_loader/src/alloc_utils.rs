@@ -1,18 +1,10 @@
 use core::ptr::slice_from_raw_parts_mut;
+use num_integer::div_ceil;
 use uefi::table::boot::{AllocateType, BootServices, MemoryType};
 use x86_64::structures::paging::{PageSize, Size4KiB};
 
-pub fn divide_ceil(a: usize, b: usize) -> usize {
-    let result = a / b;
-    if a % b != 0 {
-        result + 1
-    } else {
-        result
-    }
-}
-
 pub fn bytes_to_pages(bytes: usize) -> usize {
-    divide_ceil(bytes, Size4KiB::SIZE as usize)
+    div_ceil(bytes, Size4KiB::SIZE as usize)
 }
 
 pub fn allocate_pages(
