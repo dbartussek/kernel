@@ -429,11 +429,7 @@ impl<'page_table> ModificationManager<'page_table> {
     }
 
     fn is_valid_range(&self, range: PageRange<Size4KiB>) -> Result<(), ()> {
-        info!("{:X?}", &range);
-
         let PageRange { start, end } = range;
-
-        info!("Size: 0x{:X} pages", end - start);
 
         let start = start.start_address();
         let end = end.start_address();
@@ -532,6 +528,9 @@ impl<'page_table> ModificationManager<'page_table> {
         'start_index_loop: for start in 0..(range_size - desired_size) {
             let start_page = range.start + start;
 
+            // This is not optimal, we should skip forwards.
+            // But I want to replace this anyways, start the search at a random address, etc,
+            // so this is nice and simple.
             for index in 0..desired_size {
                 if !self.is_free_page(start_page + index) {
                     continue 'start_index_loop;
