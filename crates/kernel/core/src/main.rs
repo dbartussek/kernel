@@ -1,24 +1,25 @@
 #![no_std]
 #![no_main]
-#![feature(alloc_error_handler)]
 
 extern crate alloc;
 
 use alloc::format;
-use allocators::allocators::kernel_heap_pages::KernelHeapPages;
-use core::{alloc::Layout, panic::PanicInfo};
+use core::panic::PanicInfo;
 use cpu_local_storage::get_core_id;
 use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
 use serial_io::*;
 
+/// Import the global allocator from the allocators crate.
+///
+/// This import has a side effect.
+#[allow(unused_imports)]
+use allocators::GLOBAL_ALLOCATOR;
+
 pub fn exit(status: i32) -> ! {
     qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
 }
-
-#[global_allocator]
-static A: KernelHeapPages = KernelHeapPages;
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
@@ -59,11 +60,5 @@ fn allocation_test() {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     error!("Kernel Panic: {}", info);
-    exit(-1);
-}
-
-#[alloc_error_handler]
-fn alloc_err(l: Layout) -> ! {
-    info!("Allocation error: {:?}", l);
     exit(-1);
 }

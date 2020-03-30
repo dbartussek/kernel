@@ -6,8 +6,20 @@
 #![feature(ptr_offset_from)]
 #![feature(leading_trailing_ones)]
 #![feature(alloc_layout_extra)]
+#![feature(alloc_error_handler)]
+
+use crate::allocators::kernel_heap_pages::KernelHeapPages;
+use core::alloc::Layout;
 
 pub mod allocators;
 pub mod composition;
 pub mod traits;
 pub mod utils;
+
+#[alloc_error_handler]
+pub fn alloc_err(l: Layout) -> ! {
+    panic!("Allocation error: {:?}", l);
+}
+
+#[global_allocator]
+pub static GLOBAL_ALLOCATOR: KernelHeapPages = KernelHeapPages;
