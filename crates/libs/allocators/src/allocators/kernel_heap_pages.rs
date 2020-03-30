@@ -59,7 +59,7 @@ unsafe impl AllocRef for KernelHeapPages {
                 kernel_heap: true,
                 ..Default::default()
             },
-            move |mut manager| -> Result<PageRange<Size4KiB>, AllocErr> {
+            move |manager| -> Result<PageRange<Size4KiB>, AllocErr> {
                 let desired_pages = manager
                     .find_free_pages_in_range(
                         kernel_heap_range(),
@@ -105,7 +105,7 @@ unsafe impl AllocRef for KernelHeapPages {
                 kernel_heap: true,
                 ..Default::default()
             },
-            move |mut manager| {
+            move |manager| {
                 manager.unmap_pages_and_release(range, true).unwrap();
             },
         );

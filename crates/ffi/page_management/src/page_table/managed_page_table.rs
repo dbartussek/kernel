@@ -6,6 +6,7 @@ use core::cell::RefCell;
 use log::*;
 use spin::{Mutex, MutexGuard};
 use x86_64::{
+    instructions::interrupts,
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
         mapper::TranslateResult, page::PageRange, FrameAllocator,
@@ -164,31 +165,32 @@ impl ManagedPageTable {
     }
 
     pub fn create_offspring(&self) -> Option<Self> {
-        let mut physical_memory_map = PhysicalMemoryMap::global();
-        let root_frame = physical_memory_map
-            .frame_allocator(PageUsage::PageTableRoot)
-            .allocate_frame()?
-            .frame();
+        PhysicalMemoryMap::global(|physical_memory_map| {
+            let root_frame = physical_memory_map
+                .frame_allocator(PageUsage::PageTableRoot)
+                .allocate_frame()?
+                .frame();
 
-        unsafe {
-            let mut child = ManagedPageTable::from_raw_frame(root_frame);
+            unsafe {
+                let mut child = ManagedPageTable::from_raw_frame(root_frame);
 
-            let self_table = self.page_table_ref();
-            let child_table = child.page_table_mut();
+                let self_table = self.page_table_ref();
+                let child_table = child.page_table_mut();
 
-            child_table.zero();
-            let half_size = self_table.iter().count() / 2;
+                child_table.zero();
+                let half_size = self_table.iter().count() / 2;
 
-            for (child_it, self_it) in child_table
-                .iter_mut()
-                .zip(self_table.iter())
-                .skip(half_size)
-            {
-                *child_it = self_it.clone();
+                for (child_it, self_it) in child_table
+                    .iter_mut()
+                    .zip(self_table.iter())
+                    .skip(half_size)
+                {
+                    *child_it = self_it.clone();
+                }
+
+                Some(child)
             }
-
-            Some(child)
-        }
+        })
     }
 
     /// Tears down the page table and releases all memory used for user space mappings.
@@ -204,12 +206,22 @@ impl ManagedPageTable {
     /// Make modifications to this page table
     ///
     /// The kernel mapping is shared between all page tables and will be locked if necessary
-    pub fn modify(&mut self, flags: ModificationFlags) -> ModificationManager {
-        ModificationManager {
-            user_space: flags.user_space,
-            guards: MUTEXES.lock(flags),
-            page_table: self,
-        }
+    pub fn modify<F, R>(&mut self, flags: ModificationFlags, f: F) -> R
+    where
+        F: FnOnce(&mut ModificationManager) -> R,
+    {
+        interrupts::without_interrupts(|| {
+            // We have to be careful.
+            // Because we use raw Mutexes here, we must disable interrupts in this context
+
+            let mut manager = ModificationManager {
+                user_space: flags.user_space,
+                guards: MUTEXES.lock(flags),
+                page_table: self,
+            };
+
+            f(&mut manager)
+        })
     }
 
     /// Make modifications to the kernel mappings
@@ -218,14 +230,17 @@ impl ManagedPageTable {
     /// kernel mappings
     pub fn modify_global<F, T>(flags: ModificationFlags, f: F) -> T
     where
-        F: FnOnce(ModificationManager) -> T,
+        F: FnOnce(&mut ModificationManager) -> T,
     {
         let mut global = unsafe { Self::read_global() };
 
-        f(global.modify(ModificationFlags {
-            user_space: false,
-            ..flags
-        }))
+        global.modify(
+            ModificationFlags {
+                user_space: false,
+                ..flags
+            },
+            f,
+        )
     }
 }
 
@@ -310,32 +325,34 @@ impl<'page_table> ModificationManager<'page_table> {
             end: start_page + frame_count,
         })?;
 
-        let physical_map = RefCell::new(PhysicalMemoryMap::global());
+        PhysicalMemoryMap::global(|physical_map| {
+            let physical_map = RefCell::new(physical_map);
 
-        let mut mapper = self.page_table.mapper();
+            let mut mapper = self.page_table.mapper();
 
-        for (index, frame) in (0..frame_count)
-            .map(|index| (index, frames(&mut physical_map.borrow_mut())))
-        {
-            let mut physical_map = physical_map.borrow_mut();
-            let physical_map: &mut PhysicalMemoryMap = &mut physical_map;
+            for (index, frame) in (0..frame_count)
+                .map(|index| (index, frames(&mut physical_map.borrow_mut())))
+            {
+                let mut physical_map = physical_map.borrow_mut();
+                let physical_map: &mut PhysicalMemoryMap = &mut physical_map;
 
-            let flusher = mapper
-                .map_to(
-                    start_page + index,
-                    UnusedPhysFrame::new(frame),
-                    flags,
-                    &mut frame_allocator_function(physical_map as *mut _),
-                )
-                .unwrap();
-            if flush {
-                flusher.flush();
-            } else {
-                flusher.ignore();
+                let flusher = mapper
+                    .map_to(
+                        start_page + index,
+                        UnusedPhysFrame::new(frame),
+                        flags,
+                        &mut frame_allocator_function(physical_map as *mut _),
+                    )
+                    .unwrap();
+                if flush {
+                    flusher.flush();
+                } else {
+                    flusher.ignore();
+                }
             }
-        }
 
-        Ok(())
+            Ok(())
+        })
     }
 
     pub unsafe fn map_pages<It>(
@@ -439,22 +456,23 @@ impl<'page_table> ModificationManager<'page_table> {
     {
         self.is_valid_range(range.clone())?;
 
-        let mut physical_map = PhysicalMemoryMap::global();
-        let mut mapper = self.page_table.mapper();
+        PhysicalMemoryMap::global(|mut physical_map| {
+            let mut mapper = self.page_table.mapper();
 
-        for page in range {
-            let result = mapper.unmap(page).map(|(frame, flusher)| {
-                if flush {
-                    flusher.flush();
-                } else {
-                    flusher.ignore();
-                }
-                frame
-            });
-            deallocator(&mut physical_map, result.ok());
-        }
+            for page in range {
+                let result = mapper.unmap(page).map(|(frame, flusher)| {
+                    if flush {
+                        flusher.flush();
+                    } else {
+                        flusher.ignore();
+                    }
+                    frame
+                });
+                deallocator(&mut physical_map, result.ok());
+            }
 
-        Ok(())
+            Ok(())
+        })
     }
 
     pub unsafe fn unmap_pages_and_release(

@@ -5,10 +5,12 @@ authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-ffi_utils = { path = "../ffi_utils" }
-
 x86_64 = "0.9"
+
+log = "0.4"
 
 spin = "0.5"
 
-log = "0.4"
+ffi_utils = { path = "../../ffi/ffi_utils" }
+
+kernel_spin = { path = "../../kernel/kernel_spin" }

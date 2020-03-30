@@ -13,6 +13,8 @@ members = [
     "crates/kernel/core",
     "crates/kernel/parameters",
     "crates/kernel/serial_io",
+    "crates/kernel/kernel_spin",
+    "crates/kernel/cpu_local_storage",
 
     # FFI crates
     "crates/ffi/page_management",

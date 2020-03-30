@@ -6,14 +6,15 @@ use crate::physical::{
     page_usage::{PageUsage, PageUsageRawType},
 };
 use ffi_utils::ffi_slice::FfiSliceMut;
-use spin::{Mutex, MutexGuard};
+use kernel_spin::KernelMutex;
 use x86_64::structures::paging::{
     frame::PhysFrameRange, FrameDeallocator, PhysFrame, Size4KiB,
     UnusedPhysFrame,
 };
 
-static mut PHYSICAL_MEMORY_MAP: Option<Mutex<PhysicalMemoryMap<'static>>> =
-    None;
+static mut PHYSICAL_MEMORY_MAP: Option<
+    KernelMutex<PhysicalMemoryMap<'static>>,
+> = None;
 
 #[repr(C)]
 pub struct PhysicalMemoryMap<'buf> {
@@ -173,7 +174,7 @@ impl PhysicalMemoryMap<'static> {
     /// In general, once the system is up and running, you should not mess with this.
     pub unsafe fn register_global(self) {
         assert!(PHYSICAL_MEMORY_MAP.is_none());
-        PHYSICAL_MEMORY_MAP = Some(Mutex::new(self));
+        PHYSICAL_MEMORY_MAP = Some(KernelMutex::new(self));
     }
 
     /// Take the global memory map away.
@@ -187,15 +188,11 @@ impl PhysicalMemoryMap<'static> {
     }
 
     /// Lock the global memory map
-    pub fn global() -> MutexGuard<'static, Self> {
-        unsafe { PHYSICAL_MEMORY_MAP.as_ref().unwrap().lock() }
-    }
-
-    /// Try to lock the global memory map
-    ///
-    /// This will return None if someone else is holding the lock
-    pub fn try_global() -> Option<MutexGuard<'static, Self>> {
-        unsafe { PHYSICAL_MEMORY_MAP.as_ref().unwrap().try_lock() }
+    pub fn global<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        unsafe { PHYSICAL_MEMORY_MAP.as_ref().unwrap().lock(f) }
     }
 }
 

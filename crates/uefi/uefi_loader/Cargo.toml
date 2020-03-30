@@ -19,6 +19,7 @@ qemu-exit = "0.1"
 page_management = { path = "../../ffi/page_management" }
 
 parameters = { path = "../../kernel/parameters" }
+cpu_local_storage = { path = "../../kernel/cpu_local_storage" }
 
 elf_loader = { path = "../../libs/elf_loader" }
 call_with_stack = { path = "../../libs/call_with_stack" }

@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 parameters = { path = "../parameters" }
+cpu_local_storage = { path = "../cpu_local_storage" }
 
 page_management = { path = "../../ffi/page_management" }
 

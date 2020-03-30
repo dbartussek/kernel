@@ -49,6 +49,17 @@ impl KernelArguments {
             physical_memory_map.register_global();
         }
 
+        unsafe {
+            // Adjust the per core local storage
+
+            let address =
+                VirtAddr::from_ptr(cpu_local_storage::read_raw::<()>());
+            cpu_local_storage::init_raw(
+                (address + self.identity_base.start_address().as_u64())
+                    .as_mut_ptr::<()>(),
+            );
+        }
+
         serial_io::logger::init();
         log::set_max_level(LevelFilter::Info);
 

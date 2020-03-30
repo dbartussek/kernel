@@ -1,0 +1,9 @@
+[package]
+name = "cpu_local_storage"
+version = "0.1.0"
+authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+x86_64 = "0.9"

@@ -7,6 +7,7 @@ extern crate alloc;
 use alloc::format;
 use allocators::allocators::kernel_heap_pages::KernelHeapPages;
 use core::{alloc::Layout, panic::PanicInfo};
+use cpu_local_storage::get_core_id;
 use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
@@ -32,35 +33,43 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
 
     info!("Kernel initialized");
 
-    {
-        let memory_map = PhysicalMemoryMap::global();
+    info!("Kernel core id: {:?}", get_core_id());
+
+    PhysicalMemoryMap::global(|memory_map| {
         assert_ne!(memory_map.pages(), 0);
         info!(
             "Physical memory pages: 0x{:X}; Available: 0x{:X}",
             memory_map.pages(),
             memory_map.empty_frames(),
         );
-    }
+    });
 
     allocation_test();
+
+    PhysicalMemoryMap::global(|_| {
+        PhysicalMemoryMap::global(|_| {
+            panic!("Recursive lock on PhysicalMemoryMap::global")
+        })
+    });
 
     exit(0);
 }
 
 fn allocation_test() {
     info!("Testing allocator start");
-    let pages = PhysicalMemoryMap::global().pages();
+    let pages = PhysicalMemoryMap::global(|m| m.pages());
     let msg = format!("Testing allocator: {}", pages);
     info!("{}", msg);
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    error!("Kernel Panic: {}", info);
     exit(-1);
 }
 
 #[alloc_error_handler]
-fn alloc_err(_: Layout) -> ! {
-    info!("Allocation error");
+fn alloc_err(l: Layout) -> ! {
+    info!("Allocation error: {:?}", l);
     exit(-1);
 }

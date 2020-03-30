@@ -14,6 +14,7 @@ use crate::{memory_map::exit_boot_services, read_kernel::read_kernel};
 use alloc::boxed::Box;
 use call_with_stack::call_with_stack;
 use core::mem::MaybeUninit;
+use cpu_local_storage::data::{CoreId, CpuLocalData};
 use elf_loader::parameters::AdHocLoadParameters;
 use log::*;
 use page_management::{
@@ -63,16 +64,15 @@ unsafe fn setup_page_table<A>(
 where
     A: FnMut(&PhysicalMemoryMap) -> Option<UnusedPhysFrame>,
 {
-    let (physical_base, physical_range) = {
-        let physical_memory_map = PhysicalMemoryMap::global();
+    let (physical_base, physical_range) =
+        PhysicalMemoryMap::global(|physical_memory_map| {
+            let physical_base = physical_memory_map.base();
+            assert_eq!(physical_base.start_address().as_u64(), 0);
 
-        let physical_base = physical_memory_map.base();
-        assert_eq!(physical_base.start_address().as_u64(), 0);
+            let physical_range = physical_memory_map.physical_range();
 
-        let physical_range = physical_memory_map.physical_range();
-
-        (physical_base, physical_range)
-    };
+            (physical_base, physical_range)
+        });
 
     let physical_range = (0usize
         ..((physical_range.end - physical_range.start) as usize))
@@ -94,9 +94,7 @@ where
         })
     }
 
-    let root = {
-        let mut physical_memory_map = PhysicalMemoryMap::global();
-
+    let root = PhysicalMemoryMap::global(|physical_memory_map| {
         // Allocate the root page
         let root = create_page_table(
             &mut physical_memory_map.external_frame_allocator(
@@ -126,38 +124,41 @@ where
         }
 
         root
-    };
-
-    let mut kernel_page_table = ManagedPageTable::from_raw_frame(root);
-    let mut manager = kernel_page_table.modify(ModificationFlags {
-        user_space: true,
-        identity: true,
-        kernel_stack: false,
-        kernel_heap: false,
     });
 
-    // Map all physical pages to their identity position:
-    // - In low addresses (for bootloader)
-    manager
-        .map_pages_external_frame_allocator(
-            Page::from_start_address(VirtAddr::new(0)).unwrap(),
-            physical_range.clone(),
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-            false,
-            &mut allocate,
-        )
-        .unwrap();
+    let mut kernel_page_table = ManagedPageTable::from_raw_frame(root);
+    kernel_page_table.modify(
+        ModificationFlags {
+            user_space: true,
+            identity: true,
+            kernel_stack: false,
+            kernel_heap: false,
+        },
+        |manager| {
+            // Map all physical pages to their identity position:
+            // - In low addresses (for bootloader)
+            manager
+                .map_pages_external_frame_allocator(
+                    Page::from_start_address(VirtAddr::new(0)).unwrap(),
+                    physical_range.clone(),
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                    false,
+                    &mut allocate,
+                )
+                .unwrap();
 
-    // - In high addresses (for kernel)
-    manager
-        .map_pages_external_frame_allocator(
-            desired_identity_base,
-            physical_range,
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-            false,
-            &mut allocate,
-        )
-        .unwrap();
+            // - In high addresses (for kernel)
+            manager
+                .map_pages_external_frame_allocator(
+                    desired_identity_base,
+                    physical_range,
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                    false,
+                    &mut allocate,
+                )
+                .unwrap();
+        },
+    );
 
     kernel_page_table
 }
@@ -169,6 +170,17 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     st.stdout().reset(false).unwrap().log();
 
     info!("Initialized");
+
+    {
+        // Initialize the CpuLocalData.
+        // This has to be done early, as there are assertions in locks that will access this data.
+
+        let cpu_local_data = Box::new(CpuLocalData {
+            core_id: CoreId::from_optional_full_id(1).unwrap(),
+        });
+        let cpu_local_data = Box::leak(cpu_local_data);
+        unsafe { cpu_local_storage::init_raw(cpu_local_data as *mut _) };
+    }
 
     unsafe {
         page_management::page_table::initialize_identity_base(
@@ -247,21 +259,21 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     info!(
         "Pages used for page tables: 0x{:X}",
-        PhysicalMemoryMap::global()
+        PhysicalMemoryMap::global(|map| map
             .iter()
             .filter(|entry| match entry {
                 PageUsage::PageTable { .. }
                 | PageUsage::PageTableRoot { .. } => true,
                 _ => false,
             })
-            .count()
+            .count())
     );
     info!(
         "Available pages: 0x{:X}",
-        PhysicalMemoryMap::global()
+        PhysicalMemoryMap::global(|map| map
             .iter()
             .filter(|entry| *entry == PageUsage::Empty)
-            .count()
+            .count())
     );
 
     let stack_top: Page<Size4KiB> = {
@@ -270,36 +282,42 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
         let stack_top = stack_base + (STACK_SIZE_PAGES as u64);
 
         unsafe {
-            page_table
-                .modify(ModificationFlags {
+            page_table.modify(
+                ModificationFlags {
                     kernel_stack: true,
                     ..Default::default()
-                })
-                .map_pages_external_frame_allocator(
-                    Page::from_start_address(VirtAddr::new(KERNEL_STACK_BASE))
-                        .unwrap(),
-                    (0..STACK_SIZE_PAGES).map(|_| {
-                        PhysFrame::<Size4KiB>::from_start_address(
-                            PhysAddr::new(
-                                st.boot_services()
-                                    .allocate_pages(
-                                        AllocateType::AnyPages,
-                                        MemoryType::LOADER_DATA,
-                                        1,
-                                    )
-                                    .unwrap()
-                                    .log(),
-                            ),
+                },
+                |manager| {
+                    manager
+                        .map_pages_external_frame_allocator(
+                            Page::from_start_address(VirtAddr::new(
+                                KERNEL_STACK_BASE,
+                            ))
+                            .unwrap(),
+                            (0..STACK_SIZE_PAGES).map(|_| {
+                                PhysFrame::<Size4KiB>::from_start_address(
+                                    PhysAddr::new(
+                                        st.boot_services()
+                                            .allocate_pages(
+                                                AllocateType::AnyPages,
+                                                MemoryType::LOADER_DATA,
+                                                1,
+                                            )
+                                            .unwrap()
+                                            .log(),
+                                    ),
+                                )
+                                .unwrap()
+                            }),
+                            PageTableFlags::PRESENT
+                                | PageTableFlags::WRITABLE
+                                | PageTableFlags::NO_EXECUTE,
+                            false,
+                            |_| uefi_frame_allocator(st.boot_services())(),
                         )
-                        .unwrap()
-                    }),
-                    PageTableFlags::PRESENT
-                        | PageTableFlags::WRITABLE
-                        | PageTableFlags::NO_EXECUTE,
-                    false,
-                    |_| uefi_frame_allocator(st.boot_services())(),
-                )
-                .unwrap();
+                        .unwrap();
+                },
+            );
         }
 
         info!(
@@ -315,7 +333,8 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     info!("Exiting boot services");
 
-    let st = exit_boot_services(image, st, &mut PhysicalMemoryMap::global());
+    let st =
+        PhysicalMemoryMap::global(|map| exit_boot_services(image, st, map));
 
     // Activate the new page table
     unsafe {
