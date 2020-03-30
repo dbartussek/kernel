@@ -8,7 +8,10 @@
 #![feature(alloc_layout_extra)]
 #![feature(alloc_error_handler)]
 
-use crate::allocators::kernel_heap_pages::KernelHeapPages;
+use crate::{
+    allocators::kernel_heap_pages::KernelHeapPages,
+    composition::layout_normalizer::LayoutNormalizer,
+};
 use core::alloc::Layout;
 
 pub mod allocators;
@@ -21,5 +24,8 @@ pub fn alloc_err(l: Layout) -> ! {
     panic!("Allocation error: {:?}", l);
 }
 
+pub type KernelAllocator = LayoutNormalizer<KernelHeapPages>;
+
 #[global_allocator]
-pub static GLOBAL_ALLOCATOR: KernelHeapPages = KernelHeapPages;
+pub static GLOBAL_ALLOCATOR: KernelAllocator =
+    LayoutNormalizer::new(KernelHeapPages);

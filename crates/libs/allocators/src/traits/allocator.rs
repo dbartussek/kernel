@@ -1,5 +1,5 @@
 use core::{
-    alloc::{AllocErr, AllocRef, Layout},
+    alloc::{AllocErr, Layout},
     ptr::NonNull,
 };
 
@@ -13,20 +13,4 @@ pub trait Allocator {
     ) -> Result<(NonNull<u8>, usize), AllocErr>;
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout);
-}
-
-impl<T> Allocator for T
-where
-    T: AllocRef,
-{
-    fn alloc(
-        &mut self,
-        layout: Layout,
-    ) -> Result<(NonNull<u8>, usize), AllocErr> {
-        AllocRef::alloc(self, layout)
-    }
-
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        AllocRef::dealloc(self, ptr, layout)
-    }
 }
