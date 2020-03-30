@@ -3,17 +3,17 @@
 pub mod logger;
 
 use core::fmt::Write;
+use kernel_spin::KernelMutex;
 ///! With thanks to
 ///! https://os.phil-opp.com/testing/#serial-port
 use lazy_static::lazy_static;
-use spin::Mutex;
 use uart_16550::SerialPort;
 
 lazy_static! {
-    pub static ref SERIAL1: Mutex<SerialPort> = {
+    pub static ref SERIAL1: KernelMutex<SerialPort> = {
         let mut serial_port = unsafe { SerialPort::new(0x3F8) };
         serial_port.init();
-        Mutex::new(serial_port)
+        KernelMutex::new(serial_port)
     };
 }
 
@@ -21,13 +21,14 @@ pub fn access_serial<F>(f: F)
 where
     F: FnOnce(&mut SerialPort),
 {
-    let mut serial = SERIAL1.lock();
-    assert_ne!(
-        (&serial as &SerialPort as *const SerialPort),
-        core::ptr::null()
-    );
+    SERIAL1.lock(|serial| {
+        assert_ne!(
+            (&serial as &SerialPort as *const SerialPort),
+            core::ptr::null()
+        );
 
-    f(&mut serial)
+        f(serial)
+    });
 }
 
 #[doc(hidden)]

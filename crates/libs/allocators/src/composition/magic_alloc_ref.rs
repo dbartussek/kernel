@@ -3,7 +3,7 @@ use core::{
     alloc::{AllocErr, AllocRef, Layout},
     ptr::NonNull,
 };
-use spin::Mutex;
+use kernel_spin::KernelMutex;
 
 /// Create an AllocRef from a guarded Allocator reference
 #[derive(Copy, Clone)]
@@ -11,14 +11,14 @@ pub struct MagicAllocRef<'a, A>
 where
     A: Allocator,
 {
-    allocator: &'a Mutex<A>,
+    allocator: &'a KernelMutex<A>,
 }
 
 impl<'a, A> MagicAllocRef<'a, A>
 where
     A: Allocator,
 {
-    pub fn new(allocator: &'a Mutex<A>) -> Self {
+    pub fn new(allocator: &'a KernelMutex<A>) -> Self {
         MagicAllocRef { allocator }
     }
 
@@ -26,8 +26,7 @@ where
     where
         F: FnOnce(&mut A) -> R,
     {
-        let mut lock = self.allocator.lock();
-        function(&mut lock)
+        self.allocator.lock(function)
     }
 }
 

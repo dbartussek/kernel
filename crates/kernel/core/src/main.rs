@@ -46,12 +46,6 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
 
     allocation_test();
 
-    PhysicalMemoryMap::global(|_| {
-        PhysicalMemoryMap::global(|_| {
-            panic!("Recursive lock on PhysicalMemoryMap::global")
-        })
-    });
-
     exit(0);
 }
 
