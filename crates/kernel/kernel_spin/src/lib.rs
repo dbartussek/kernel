@@ -10,6 +10,7 @@ use x86_64::instructions::interrupts;
 /// A Spinlock that disables interrupts while it is locked
 ///
 /// Interrupts are disabled in critical sections to prevent deadlocks
+#[derive(Default)]
 pub struct KernelMutex<T> {
     mutex: spin::Mutex<T>,
     current_holder_id: AtomicU64,

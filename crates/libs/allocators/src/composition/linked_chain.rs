@@ -32,6 +32,18 @@ where
 {
 }
 
+impl<A, B> Default for LinkedChain<A, B>
+where
+    B: Allocator + Default,
+{
+    fn default() -> Self {
+        LinkedChain {
+            head: None,
+            backing: Default::default(),
+        }
+    }
+}
+
 impl<A, B> LinkedChain<A, B>
 where
     B: Allocator,

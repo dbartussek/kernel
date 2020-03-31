@@ -5,6 +5,7 @@ use core::{
 };
 use kernel_spin::KernelMutex;
 
+#[derive(Default)]
 pub struct LockedGlobalAlloc<A> {
     inner: KernelMutex<A>,
 }

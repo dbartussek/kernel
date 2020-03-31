@@ -15,6 +15,16 @@ impl<S, L, const THRESHOLD: usize> SizeDeciding<S, L, { THRESHOLD }> {
     }
 }
 
+impl<S, L, const THRESHOLD: usize> Default for SizeDeciding<S, L, { THRESHOLD }>
+where
+    S: Default,
+    L: Default,
+{
+    fn default() -> Self {
+        SizeDeciding::new(Default::default(), Default::default())
+    }
+}
+
 impl<S, L, const THRESHOLD: usize> Allocator
     for SizeDeciding<S, L, { THRESHOLD }>
 where

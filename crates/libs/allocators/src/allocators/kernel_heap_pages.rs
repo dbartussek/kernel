@@ -74,7 +74,9 @@ unsafe impl AllocRef for KernelHeapPages {
                     manager.map_blank_pages(
                         desired_pages.start,
                         pages,
-                        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::NO_EXECUTE,
                         true,
                         PageUsage::KernelHeap,
                     )

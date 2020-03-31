@@ -4,20 +4,13 @@ use core::{
     ptr::NonNull,
 };
 
-pub struct FallBackAllocator<P, F>
-where
-    P: Allocator + OwnerCheck,
-    F: Allocator,
-{
+#[derive(Default)]
+pub struct FallBackAllocator<P, F> {
     primary: P,
     fallback: F,
 }
 
-impl<P, F> FallBackAllocator<P, F>
-where
-    P: Allocator + OwnerCheck,
-    F: Allocator,
-{
+impl<P, F> FallBackAllocator<P, F> {
     pub const fn new(primary: P, fallback: F) -> Self {
         FallBackAllocator { primary, fallback }
     }
