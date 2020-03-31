@@ -1,7 +1,9 @@
+use crate::traits::Allocator;
 use core::{
     alloc::{AllocErr, AllocRef, GlobalAlloc, Layout},
     ptr::NonNull,
 };
+use log::*;
 use num_integer::Integer;
 use page_management::{
     page_table::managed_page_table::{
@@ -82,11 +84,12 @@ unsafe impl AllocRef for KernelHeapPages {
             },
         )?;
 
-        Ok((
-            NonNull::new(mapped_pages.start.start_address().as_mut_ptr())
-                .unwrap(),
-            layout.size(),
-        ))
+        let ptr = NonNull::new(mapped_pages.start.start_address().as_mut_ptr())
+            .unwrap();
+
+        trace!("KernelHeapPages allocated {} pages at {:?}", pages, ptr);
+
+        Ok((ptr, layout.size()))
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
@@ -109,5 +112,18 @@ unsafe impl AllocRef for KernelHeapPages {
                 manager.unmap_pages_and_release(range, true).unwrap();
             },
         );
+    }
+}
+
+impl Allocator for KernelHeapPages {
+    fn alloc(
+        &mut self,
+        layout: Layout,
+    ) -> Result<(NonNull<u8>, usize), AllocErr> {
+        AllocRef::alloc(self, layout)
+    }
+
+    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+        AllocRef::dealloc(self, ptr, layout)
     }
 }

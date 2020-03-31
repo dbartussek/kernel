@@ -4,9 +4,11 @@ use crate::{
 };
 use core::{
     alloc::{AllocErr, Layout},
+    any::type_name,
     mem::MaybeUninit,
     ptr::NonNull,
 };
+use log::*;
 
 const MAX_ALIGNMENT: usize = 16;
 
@@ -57,22 +59,25 @@ impl<const BLOCK_SIZE: usize, const CAPACITY: usize> Allocator
             return Err(AllocErr);
         }
 
+        trace!("{}: allocating {:?}", type_name::<Self>(), layout);
+
         let allocation_index =
             self.bitmap.find_first_unset().ok_or(AllocErr)?;
+
+        trace!("Index for allocation: {}", allocation_index);
 
         debug_assert!(allocation_index < CAPACITY);
 
         self.bitmap.insert(allocation_index);
 
-        Ok((
-            unsafe {
-                NonNull::new_unchecked(
-                    &mut self.storage.get_unchecked_mut(allocation_index)
-                        as *mut _ as *mut u8,
-                )
-            },
-            BLOCK_SIZE,
-        ))
+        let ptr = NonNull::new(
+            (&mut self.storage[allocation_index]) as *mut _ as *mut u8,
+        )
+        .unwrap();
+
+        trace!("Allocated {:?}", ptr);
+
+        Ok((ptr, BLOCK_SIZE))
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {

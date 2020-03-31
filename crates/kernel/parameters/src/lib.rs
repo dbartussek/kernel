@@ -61,7 +61,7 @@ impl KernelArguments {
         }
 
         serial_io::logger::init();
-        log::set_max_level(LevelFilter::Info);
+        log::set_max_level(LevelFilter::Trace);
 
         info!("KernelArguments initialized");
 

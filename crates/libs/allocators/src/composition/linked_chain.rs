@@ -1,21 +1,14 @@
 use crate::traits::{Allocator, OwnerCheck};
 use core::{
     alloc::{AllocErr, Layout},
+    any::type_name,
     ptr::{drop_in_place, NonNull},
 };
+use log::*;
 
 struct AllocatorBlock<A> {
     pub allocator: A,
     pub next: Option<NonNull<AllocatorBlock<A>>>,
-}
-
-pub struct LinkedChain<A, B>
-where
-    A: Allocator + OwnerCheck + Default,
-    B: Allocator,
-{
-    head: Option<NonNull<AllocatorBlock<A>>>,
-    backing: B,
 }
 
 /// A composing allocator
@@ -24,9 +17,23 @@ where
 ///
 /// When a request is made, it walks its list of allocators until one can fulfill the request.
 /// If no allocator can, a new A is created with memory allocated from B
+pub struct LinkedChain<A, B>
+where
+    B: Allocator,
+{
+    head: Option<NonNull<AllocatorBlock<A>>>,
+    backing: B,
+}
+
+unsafe impl<A, B> Send for LinkedChain<A, B>
+where
+    A: Send,
+    B: Send + Allocator,
+{
+}
+
 impl<A, B> LinkedChain<A, B>
 where
-    A: Allocator + OwnerCheck + Default,
     B: Allocator,
 {
     /// The layout of internal allocation blocks
@@ -36,32 +43,11 @@ where
         Layout::new::<AllocatorBlock<A>>()
     }
 
-    pub fn new(backing: B) -> Self {
+    pub const fn new(backing: B) -> Self {
         LinkedChain {
             head: None,
             backing,
         }
-    }
-
-    fn allocate_new_block(
-        &mut self,
-    ) -> Result<NonNull<AllocatorBlock<A>>, AllocErr> {
-        // Allocate a new block from the backing store
-        let memory = self.backing.alloc(Self::block_layout())?.0;
-
-        // Write the old head to the new block
-        let memory = memory.cast::<AllocatorBlock<A>>();
-        unsafe {
-            memory.as_ptr().write(AllocatorBlock {
-                allocator: A::default(),
-                next: self.head.take(),
-            });
-        }
-
-        // Make the new block into the head
-        self.head = Some(memory);
-
-        Ok(memory)
     }
 
     fn walk_chain_mut<CB, R>(&mut self, mut callback: CB) -> Option<R>
@@ -105,9 +91,37 @@ where
     }
 }
 
-impl<A, B> Drop for LinkedChain<A, B>
+impl<A, B> LinkedChain<A, B>
 where
     A: Allocator + OwnerCheck + Default,
+    B: Allocator,
+{
+    fn allocate_new_block(
+        &mut self,
+    ) -> Result<NonNull<AllocatorBlock<A>>, AllocErr> {
+        trace!("{}: Allocating new block", type_name::<Self>());
+
+        // Allocate a new block from the backing store
+        let memory = self.backing.alloc(Self::block_layout())?.0;
+
+        // Write the old head to the new block
+        let memory = memory.cast::<AllocatorBlock<A>>();
+        unsafe {
+            memory.as_ptr().write(AllocatorBlock {
+                allocator: A::default(),
+                next: self.head.take(),
+            });
+        }
+
+        // Make the new block into the head
+        self.head = Some(memory);
+
+        Ok(memory)
+    }
+}
+
+impl<A, B> Drop for LinkedChain<A, B>
+where
     B: Allocator,
 {
     fn drop(&mut self) {

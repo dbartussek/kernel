@@ -18,7 +18,7 @@ impl<'a, A> MagicAllocRef<'a, A>
 where
     A: Allocator,
 {
-    pub fn new(allocator: &'a KernelMutex<A>) -> Self {
+    pub const fn new(allocator: &'a KernelMutex<A>) -> Self {
         MagicAllocRef { allocator }
     }
 

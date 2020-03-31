@@ -9,10 +9,16 @@
 #![feature(alloc_error_handler)]
 
 use crate::{
-    allocators::kernel_heap_pages::KernelHeapPages,
-    composition::layout_normalizer::LayoutNormalizer,
+    allocators::{
+        fixed_bitmap::FixedBitMap, kernel_heap_pages::KernelHeapPages,
+    },
+    composition::{
+        layout_normalizer::LayoutNormalizer, linked_chain::LinkedChain,
+        locked_global_alloc::LockedGlobalAlloc, size_deciding::SizeDeciding,
+    },
 };
 use core::alloc::Layout;
+use x86_64::structures::paging::{PageSize, Size4KiB};
 
 pub mod allocators;
 pub mod composition;
@@ -24,8 +30,22 @@ pub fn alloc_err(l: Layout) -> ! {
     panic!("Allocation error: {:?}", l);
 }
 
-pub type KernelAllocator = LayoutNormalizer<KernelHeapPages>;
+pub type KernelAllocator = LayoutNormalizer<
+    SizeDeciding<
+        LockedGlobalAlloc<
+            LinkedChain<
+                FixedBitMap<{ 512 }, { (Size4KiB::SIZE as usize) / 512 - 1 }>,
+                KernelHeapPages,
+            >,
+        >,
+        KernelHeapPages,
+        { 512 },
+    >,
+>;
 
 #[global_allocator]
 pub static GLOBAL_ALLOCATOR: KernelAllocator =
-    LayoutNormalizer::new(KernelHeapPages);
+    LayoutNormalizer::new(SizeDeciding::new(
+        LockedGlobalAlloc::new(LinkedChain::new(KernelHeapPages)),
+        KernelHeapPages,
+    ));

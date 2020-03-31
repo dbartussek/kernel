@@ -18,7 +18,7 @@ where
     P: Allocator + OwnerCheck,
     F: Allocator,
 {
-    pub fn new(primary: P, fallback: F) -> Self {
+    pub const fn new(primary: P, fallback: F) -> Self {
         FallBackAllocator { primary, fallback }
     }
 }
