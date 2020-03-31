@@ -64,8 +64,6 @@ impl<const BLOCK_SIZE: usize, const CAPACITY: usize> Allocator
         let allocation_index =
             self.bitmap.find_first_unset().ok_or(AllocErr)?;
 
-        trace!("Index for allocation: {}", allocation_index);
-
         debug_assert!(allocation_index < CAPACITY);
 
         self.bitmap.insert(allocation_index);
@@ -75,12 +73,24 @@ impl<const BLOCK_SIZE: usize, const CAPACITY: usize> Allocator
         )
         .unwrap();
 
-        trace!("Allocated {:?}", ptr);
+        trace!(
+            "Allocated {} byte at {}: {:?}",
+            BLOCK_SIZE,
+            allocation_index,
+            ptr
+        );
+        trace!(
+            "Bitmap is {}/{} full",
+            self.bitmap.len(),
+            self.bitmap.capacity()
+        );
 
         Ok((ptr, BLOCK_SIZE))
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+        trace!("{}: dealloc {:?} {:?}", type_name::<Self>(), ptr, layout);
+
         debug_assert!(layout.size() <= BLOCK_SIZE);
         debug_assert!(layout.align() <= MAX_ALIGNMENT);
         debug_assert!(self.is_owner(ptr, layout));
@@ -92,6 +102,12 @@ impl<const BLOCK_SIZE: usize, const CAPACITY: usize> Allocator
         debug_assert_eq!(self.bitmap.contains(index), Some(true));
 
         self.bitmap.remove(index);
+
+        trace!(
+            "Bitmap is {}/{} full",
+            self.bitmap.len(),
+            self.bitmap.capacity()
+        );
     }
 }
 

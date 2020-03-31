@@ -30,22 +30,71 @@ pub fn alloc_err(l: Layout) -> ! {
     panic!("Allocation error: {:?}", l);
 }
 
+/// Allocations larger than this are allocated as pages
+const SIZE_PAGE_FALLBACK: usize = 2 << 8;
+
+pub type Bucket<const SIZE: usize, const PAGES: usize> = LinkedChain<
+    FixedBitMap<{ SIZE }, { (Size4KiB::SIZE as usize) * PAGES / SIZE }>,
+    KernelHeapPages,
+>;
+
+pub type DecidingBucket<A, const SIZE: usize, const PAGES: usize> =
+    SizeDeciding<Bucket<{ SIZE }, { PAGES }>, A, { SIZE }>;
+
 pub type KernelAllocator = LayoutNormalizer<
     SizeDeciding<
         LockedGlobalAlloc<
-            LinkedChain<
-                FixedBitMap<{ 512 }, { (Size4KiB::SIZE as usize) / 512 - 1 }>,
-                KernelHeapPages,
+            // Bucket size 16
+            DecidingBucket<
+                // Bucket size 32
+                DecidingBucket<
+                    // Bucket size 64
+                    DecidingBucket<
+                        // Bucket size 128
+                        DecidingBucket<
+                            // Bucket of size 256
+                            DecidingBucket<
+                                // Fallback bucket, has to cover all sizes up to SIZE_PAGE_FALLBACK
+                                Bucket<{ SIZE_PAGE_FALLBACK }, { 1 }>,
+                                { 256 },
+                                { 1 },
+                            >,
+                            { 128 },
+                            { 1 },
+                        >,
+                        { 64 },
+                        { 1 },
+                    >,
+                    { 32 },
+                    { 1 },
+                >,
+                { 16 },
+                { 1 },
             >,
         >,
         KernelHeapPages,
-        { 512 },
+        { SIZE_PAGE_FALLBACK },
     >,
 >;
 
 #[global_allocator]
 pub static GLOBAL_ALLOCATOR: KernelAllocator =
     LayoutNormalizer::new(SizeDeciding::new(
-        LockedGlobalAlloc::new(LinkedChain::new(KernelHeapPages)),
+        LockedGlobalAlloc::new(SizeDeciding::new(
+            LinkedChain::new(KernelHeapPages),
+            SizeDeciding::new(
+                LinkedChain::new(KernelHeapPages),
+                SizeDeciding::new(
+                    LinkedChain::new(KernelHeapPages),
+                    SizeDeciding::new(
+                        LinkedChain::new(KernelHeapPages),
+                        SizeDeciding::new(
+                            LinkedChain::new(KernelHeapPages),
+                            LinkedChain::new(KernelHeapPages),
+                        ),
+                    ),
+                ),
+            ),
+        )),
         KernelHeapPages,
     ));

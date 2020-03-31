@@ -41,6 +41,18 @@ impl<const SIZE: usize> BitSet<{ SIZE }> {
         SIZE
     }
 
+    pub fn len(&self) -> usize {
+        (self.0).0.iter().map(|v| v.count_ones() as usize).sum()
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.len() == self.capacity()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        (self.0).0.iter().all(|v| *v == 0)
+    }
+
     fn get_group_for(&self, index: usize) -> Option<RawType> {
         if index < self.capacity() {
             Some(unsafe { *(self.0).0.get_unchecked(index / RAW_TYPE_BITS) })

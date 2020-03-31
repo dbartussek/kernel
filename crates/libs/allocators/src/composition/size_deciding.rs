@@ -25,7 +25,7 @@ where
         &mut self,
         layout: Layout,
     ) -> Result<(NonNull<u8>, usize), AllocErr> {
-        if layout.size() < THRESHOLD {
+        if layout.size() <= THRESHOLD {
             self.small.alloc(layout)
         } else {
             self.large.alloc(layout)
@@ -33,7 +33,7 @@ where
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        if layout.size() < THRESHOLD {
+        if layout.size() <= THRESHOLD {
             self.small.dealloc(ptr, layout)
         } else {
             self.large.dealloc(ptr, layout)
@@ -48,7 +48,7 @@ where
     L: GlobalAlloc,
 {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if layout.size() < THRESHOLD {
+        if layout.size() <= THRESHOLD {
             self.small.alloc(layout)
         } else {
             self.large.alloc(layout)
@@ -56,7 +56,7 @@ where
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        if layout.size() < THRESHOLD {
+        if layout.size() <= THRESHOLD {
             self.small.dealloc(ptr, layout)
         } else {
             self.large.dealloc(ptr, layout)
@@ -64,7 +64,7 @@ where
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        if layout.size() < THRESHOLD {
+        if layout.size() <= THRESHOLD {
             self.small.alloc_zeroed(layout)
         } else {
             self.large.alloc_zeroed(layout)
@@ -77,7 +77,7 @@ where
         layout: Layout,
         new_size: usize,
     ) -> *mut u8 {
-        if layout.size() < THRESHOLD {
+        if layout.size() <= THRESHOLD {
             self.small.realloc(ptr, layout, new_size)
         } else {
             self.large.realloc(ptr, layout, new_size)

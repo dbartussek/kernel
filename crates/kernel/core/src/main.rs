@@ -53,7 +53,12 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
 fn allocation_test() {
     info!("Testing allocator start");
     let pages = PhysicalMemoryMap::global(|m| m.pages());
-    let msg = format!("Testing allocator: {}", pages);
+    let mut msg = format!("Testing allocator: {}; ", pages);
+
+    for _ in 0..32 {
+        msg.push('a');
+    }
+
     info!("{}", msg);
 }
 
