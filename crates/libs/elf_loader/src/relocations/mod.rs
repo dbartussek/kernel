@@ -25,7 +25,7 @@ impl Relocation {
     ) {
         let offset = self.data.r_offset as usize;
         if offset >= program.len() {
-            unimplemented!()
+            unimplemented!("Offset out of bounds")
         }
 
         let position = &mut program[offset..];

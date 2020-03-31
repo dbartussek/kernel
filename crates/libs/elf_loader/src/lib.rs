@@ -104,6 +104,6 @@ where
                 entry,
             }
         },
-        Err(_) => unimplemented!(),
+        Err(e) => unimplemented!("Elf parse error: {:?}", e),
     }
 }

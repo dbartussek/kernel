@@ -200,7 +200,7 @@ impl ManagedPageTable {
     /// Any attempts to use it at a later point will lead to nasty bugs.
     pub unsafe fn dispose(self) {
         assert_ne!(self.frame(), Cr3::read().0);
-        unimplemented!()
+        unimplemented!("Dispose not implemented")
     }
 
     /// Make modifications to this page table
