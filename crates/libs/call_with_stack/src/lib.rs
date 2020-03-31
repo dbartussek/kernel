@@ -8,6 +8,7 @@ use core::{
 pub type RawCallFunctionSignature = unsafe extern "sysv64" fn(*mut c_void);
 pub type RawJumpFunctionSignature = unsafe extern "sysv64" fn(*mut c_void) -> !;
 
+#[link(name = "call_with_stack_asm", kind = "static")]
 extern "sysv64" {
     pub fn call_with_stack_raw(
         arg: *mut c_void,
