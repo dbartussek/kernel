@@ -5,6 +5,6 @@ authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
 edition = "2018"
 
 [build-dependencies]
-nasm-rs = "0.1"
+nasm-rs = { vesion = "0.1", git = "https://github.com/dbartussek/nasm-rs.git" }
 
 [dependencies]
