@@ -31,7 +31,7 @@ pub fn alloc_err(l: Layout) -> ! {
 }
 
 /// Allocations larger than this are allocated as pages
-const SIZE_PAGE_FALLBACK: usize = 2 << 8;
+const SIZE_PAGE_FALLBACK: usize = 512;
 
 pub type Bucket<const SIZE: usize, const PAGES: usize> = LinkedChain<
     FixedBitMap<{ SIZE }, { (Size4KiB::SIZE as usize) * PAGES / SIZE }>,
