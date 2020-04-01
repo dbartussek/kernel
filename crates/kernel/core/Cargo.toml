@@ -11,6 +11,7 @@ cpu_local_storage = { path = "../cpu_local_storage" }
 page_management = { path = "../../ffi/page_management" }
 
 serial_io = { path = "../serial_io" }
+interrupt_handling = { path = "../interrupt_handling" }
 
 allocators = { path = "../../libs/allocators" }
 

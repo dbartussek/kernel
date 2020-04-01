@@ -16,6 +16,7 @@ use serial_io::*;
 /// This import has a side effect.
 #[allow(unused_imports)]
 use allocators::GLOBAL_ALLOCATOR;
+use interrupt_handling::perform_system_call;
 use x86_64::instructions::interrupts::int3;
 
 pub fn exit(status: i32) -> ! {
@@ -49,6 +50,9 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     allocation_test();
 
     int3();
+
+    let syscall_result = perform_system_call(0, 0x22, 0x33, 0x44, 0x55, 0x66);
+    info!("Performed system call: {:#X?}", syscall_result);
 
     exit(0);
 }
