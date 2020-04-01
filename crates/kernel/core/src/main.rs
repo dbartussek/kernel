@@ -16,6 +16,7 @@ use serial_io::*;
 /// This import has a side effect.
 #[allow(unused_imports)]
 use allocators::GLOBAL_ALLOCATOR;
+use x86_64::instructions::interrupts::int3;
 
 pub fn exit(status: i32) -> ! {
     qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
@@ -46,6 +47,8 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     });
 
     allocation_test();
+
+    int3();
 
     exit(0);
 }

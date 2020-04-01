@@ -15,6 +15,7 @@ members = [
     "crates/kernel/serial_io",
     "crates/kernel/kernel_spin",
     "crates/kernel/cpu_local_storage",
+    "crates/kernel/interrupt_handling",
 
     # FFI crates
     "crates/ffi/page_management",

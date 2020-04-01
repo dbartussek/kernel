@@ -55,7 +55,7 @@ impl BuildParameters {
 
     pub fn kernel_default() -> Self {
         BuildParameters {
-            target: Target::custom("x86_64-bare".to_string()),
+            target: Target::custom("x86_64-unknown-bare".to_string()),
             manifest_directory: Some("crates/kernel/core".into()),
             config: Default::default(),
         }

@@ -65,6 +65,10 @@ impl KernelArguments {
 
         info!("KernelArguments initialized");
 
+        unsafe {
+            interrupt_handling::init();
+        }
+
         InitializedKernelArguments { st: self.st }
     }
 }
