@@ -16,6 +16,7 @@ members = [
     "crates/kernel/kernel_spin",
     "crates/kernel/cpu_local_storage",
     "crates/kernel/interrupt_handling",
+    "crates/kernel/pic8259",
 
     # FFI crates
     "crates/ffi/page_management",

@@ -1,5 +1,6 @@
 use kernel_spin::KernelMutex;
-use pic8259_simple::ChainedPics;
+use log::*;
+use pic8259::ChainedPics;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -21,4 +22,13 @@ impl InterruptIndex {
     pub fn as_usize(self) -> usize {
         usize::from(self.as_u8())
     }
+}
+
+pub unsafe fn init() {
+    PICS.lock(|pic| {
+        pic.initialize();
+        pic.set_mask(0, !0x03);
+        pic.set_mask(1, 0xff);
+        trace!("pic initialized");
+    });
 }

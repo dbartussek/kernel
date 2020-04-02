@@ -10,7 +10,7 @@ walkdir = "2.3"
 
 [dependencies]
 x86_64 = "0.9"
-pic8259_simple = "0.1"
+pic8259 = { path = "../pic8259" }
 
 log = "0.4"
 

@@ -126,15 +126,12 @@ pub unsafe fn init() {
 
     IDT.load();
 
-    self::pic::PICS.lock(|pic| {
-        pic.initialize();
-    });
+    pic::init();
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(
     _stack_frame: &mut InterruptStackFrame,
 ) {
-    info!("Timer");
     unsafe {
         PICS.lock(|pics| {
             pics.notify_end_of_interrupt(InterruptIndex::Timer.as_u8())

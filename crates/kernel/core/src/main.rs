@@ -10,7 +10,7 @@ use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
 use serial_io::*;
-use x86_64::instructions::interrupts;
+use x86_64::instructions::{hlt, interrupts};
 
 /// Import the global allocator from the allocators crate.
 ///
@@ -35,6 +35,8 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
 
     let _args = args.init();
 
+    interrupts::enable();
+
     info!("Kernel initialized");
 
     info!("Kernel core id: {:?}", get_core_id());
@@ -57,7 +59,7 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     info!("Performed system call: {:#X?}", syscall_result);
 
     loop {
-        interrupts::enable_interrupts_and_hlt();
+        hlt();
     }
 
     exit(0);
