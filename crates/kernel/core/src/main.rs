@@ -10,6 +10,7 @@ use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
 use serial_io::*;
+use x86_64::instructions::interrupts;
 
 /// Import the global allocator from the allocators crate.
 ///
@@ -50,9 +51,14 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     allocation_test();
 
     int3();
+    info!("After breakpoint");
 
     let syscall_result = perform_system_call(0, 0x22, 0x33, 0x44, 0x55, 0x66);
     info!("Performed system call: {:#X?}", syscall_result);
+
+    loop {
+        interrupts::enable_interrupts_and_hlt();
+    }
 
     exit(0);
 }

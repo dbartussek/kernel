@@ -221,6 +221,8 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
                     let memory = VirtAddr::new(address);
                     let virtual_pages = memory + IDENTITY_BASE;
 
+                    info!("Kernel virtual base: {:?}", virtual_pages);
+
                     let memory =
                         Page::<Size4KiB>::from_start_address(memory).unwrap();
                     let virtual_pages =

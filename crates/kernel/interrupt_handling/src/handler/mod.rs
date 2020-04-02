@@ -1,5 +1,11 @@
+use crate::handler::pic::{InterruptIndex, PICS};
 use log::*;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::structures::idt::{
+    InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode,
+};
+
+pub(crate) mod gdt;
+pub(crate) mod pic;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -64,17 +70,76 @@ extern "x86-interrupt" {
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::new();
 
 pub unsafe fn init() {
+    gdt::init();
+
     IDT.breakpoint.set_handler_fn(core::mem::transmute(
         asm_breakpoint_handler as *mut (),
     ));
 
     IDT.double_fault.set_handler_fn(double_fault_handler);
 
+    IDT.page_fault.set_handler_fn(page_fault_handler);
+    IDT.general_protection_fault
+        .set_handler_fn(general_protection_fault_handler);
+
+    {
+        // pic8259 interrupts
+        macro_rules! add_unknown_handler {
+            ($name: ident, $id: expr) => {
+                extern "x86-interrupt" fn $name(
+                    _stack_frame: &mut InterruptStackFrame,
+                ) {
+                    panic!(concat!(
+                        "Unhandled pic interrupt ",
+                        stringify!($id)
+                    ));
+                }
+
+                IDT[InterruptIndex::Timer.as_usize() + $id]
+                    .set_handler_fn($name);
+            };
+        };
+
+        add_unknown_handler!(pic1, 1);
+        add_unknown_handler!(pic2, 2);
+        add_unknown_handler!(pic3, 3);
+        add_unknown_handler!(pic4, 4);
+        add_unknown_handler!(pic5, 5);
+        add_unknown_handler!(pic6, 6);
+        add_unknown_handler!(pic7, 7);
+        add_unknown_handler!(pic8, 8);
+        add_unknown_handler!(pic9, 9);
+        add_unknown_handler!(pic10, 10);
+        add_unknown_handler!(pic11, 11);
+        add_unknown_handler!(pic12, 12);
+        add_unknown_handler!(pic13, 13);
+        add_unknown_handler!(pic14, 14);
+        add_unknown_handler!(pic15, 15);
+
+        IDT[InterruptIndex::Timer.as_usize()]
+            .set_handler_fn(timer_interrupt_handler);
+    }
+
     IDT[0x80].set_handler_fn(core::mem::transmute(
         asm_int_syscall_handler as *mut (),
     ));
 
     IDT.load();
+
+    self::pic::PICS.lock(|pic| {
+        pic.initialize();
+    });
+}
+
+extern "x86-interrupt" fn timer_interrupt_handler(
+    _stack_frame: &mut InterruptStackFrame,
+) {
+    info!("Timer");
+    unsafe {
+        PICS.lock(|pics| {
+            pics.notify_end_of_interrupt(InterruptIndex::Timer.as_u8())
+        });
+    }
 }
 
 extern "x86-interrupt" fn double_fault_handler(
@@ -82,6 +147,19 @@ extern "x86-interrupt" fn double_fault_handler(
     _code: u64,
 ) -> ! {
     panic!("Double fault\n{:#?}", frame)
+}
+
+extern "x86-interrupt" fn page_fault_handler(
+    frame: &mut InterruptStackFrame,
+    code: PageFaultErrorCode,
+) {
+    panic!("Page fault: {:?}\n{:#?}", code, frame)
+}
+extern "x86-interrupt" fn general_protection_fault_handler(
+    frame: &mut InterruptStackFrame,
+    code: u64,
+) {
+    panic!("General protection fault: 0x{:X}\n{:#?}", code, frame)
 }
 
 #[no_mangle]
