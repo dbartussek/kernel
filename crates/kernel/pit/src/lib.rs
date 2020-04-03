@@ -37,6 +37,7 @@ impl Pit {
         self.set_divider(0);
     }
 
+    /// Set the frequency divider
     pub unsafe fn set_divider(&mut self, divider: u16) {
         self.channel_0_divider = divider;
         self.channel_0_duration = Self::calculate_timer_duration(divider);
@@ -45,12 +46,24 @@ impl Pit {
         self.channel_0.write((divider >> 8) as u8);
     }
 
+    pub unsafe fn set_duration(&mut self, duration: Duration) {
+        let result = (duration.as_nanos() as u64)
+            / (Self::base_duration().as_nanos() as u64);
+
+        self.set_divider(match result {
+            0 => 1,
+            n if n > (core::u16::MAX as u64) => 0,
+            n => n as u16,
+        })
+    }
+
+    /// Send a configuration command
     pub unsafe fn write_command(&mut self, command: Command) {
         self.command.write(command.compile())
     }
 
     /// How much time passes between each interrupt when the divider == 1
-    pub fn base_duration() -> Duration {
+    pub const fn base_duration() -> Duration {
         const FREQUENCY: u64 = 1_193_182;
         const SECOND: u64 = 1_000_000_000;
 

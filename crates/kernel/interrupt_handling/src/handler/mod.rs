@@ -5,7 +5,7 @@ use x86_64::structures::idt::{
 };
 
 pub(crate) mod gdt;
-pub(crate) mod pic;
+pub mod pic;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
