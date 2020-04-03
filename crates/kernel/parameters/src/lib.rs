@@ -1,12 +1,12 @@
 #![no_std]
 
-use core::slice::from_raw_parts_mut;
+use core::{slice::from_raw_parts_mut, time::Duration};
 use log::*;
 use page_management::physical::{
     map::PhysicalMemoryMap, page_usage::PageUsageRawType,
 };
 use uefi::table::{Runtime, SystemTable};
-use x86_64::{structures::paging::Page, VirtAddr};
+use x86_64::{instructions::interrupts, structures::paging::Page, VirtAddr};
 
 pub type KernelEntrySignature =
     unsafe extern "sysv64" fn(*mut KernelArguments) -> ();
@@ -67,7 +67,12 @@ impl KernelArguments {
 
         unsafe {
             interrupt_handling::init();
+            interrupt_handling::handler::pic::PIT.lock(|pit| {
+                pit.set_duration(Duration::from_millis(1));
+                info!("PIT duration: {:?}", pit.duration());
+            });
         }
+        interrupts::enable();
 
         InitializedKernelArguments { st: self.st }
     }

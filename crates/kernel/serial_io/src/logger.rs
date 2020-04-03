@@ -61,6 +61,8 @@ impl<'writer, W: fmt::Write> DecoratedLog<'writer, W> {
 
 impl<'writer, W: fmt::Write> fmt::Write for DecoratedLog<'writer, W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
+        let time = interrupt_handling::get_pit_duration();
+
         // Split the input string into lines
         let mut lines = s.lines();
 
@@ -69,7 +71,7 @@ impl<'writer, W: fmt::Write> fmt::Write for DecoratedLog<'writer, W> {
         // beginning of a line of output.
         let first = lines.next().unwrap_or("");
         if self.at_line_start {
-            write!(self.writer, "{}: ", self.log_level)?;
+            write!(self.writer, "{} {:?}: ", self.log_level, time)?;
             self.at_line_start = false;
         }
         write!(self.writer, "{}", first)?;

@@ -17,7 +17,6 @@ use x86_64::instructions::interrupts;
 /// This import has a side effect.
 #[allow(unused_imports)]
 use allocators::GLOBAL_ALLOCATOR;
-use core::time::Duration;
 use interrupt_handling::{get_pit_duration, perform_system_call};
 use x86_64::instructions::interrupts::int3;
 
@@ -59,11 +58,6 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     let syscall_result = perform_system_call(0, 0x22, 0x33, 0x44, 0x55, 0x66);
     info!("Performed system call: {:#X?}", syscall_result);
 
-    interrupt_handling::handler::pic::PIT.lock(|pit| {
-        pit.set_duration(Duration::from_millis(1));
-        info!("PIT duration: {:?}", pit.duration());
-    });
-
     let mut duration = get_pit_duration();
     let mut counter = 0;
 
@@ -74,7 +68,7 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
 
         let delta = now - duration;
         if delta.as_secs() > 0 {
-            info!("A second has passed: {:?}", now);
+            info!("A second has passed");
             duration = now;
             counter += 1;
         }

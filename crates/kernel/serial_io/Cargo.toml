@@ -14,3 +14,4 @@ x86_64 = "0.9"
 log = "0.4"
 
 kernel_spin = { path = "../kernel_spin" }
+interrupt_handling = { path = "../interrupt_handling" }
