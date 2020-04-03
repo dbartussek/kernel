@@ -1,4 +1,4 @@
-use crate::handler::pic::{InterruptIndex, PICS};
+use crate::handler::pic::{timer_interrupt_handler, InterruptIndex};
 use log::*;
 use x86_64::structures::idt::{
     InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode,
@@ -127,16 +127,6 @@ pub unsafe fn init() {
     IDT.load();
 
     pic::init();
-}
-
-extern "x86-interrupt" fn timer_interrupt_handler(
-    _stack_frame: &mut InterruptStackFrame,
-) {
-    unsafe {
-        PICS.lock(|pics| {
-            pics.notify_end_of_interrupt(InterruptIndex::Timer.as_u8())
-        });
-    }
 }
 
 extern "x86-interrupt" fn double_fault_handler(

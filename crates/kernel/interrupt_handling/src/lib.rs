@@ -1,6 +1,8 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
 
+use core::time::Duration;
+
 pub mod handler;
 
 pub unsafe fn init() {
@@ -35,4 +37,8 @@ pub fn perform_system_call(
     e: usize,
 ) -> SyscallResult {
     unsafe { asm_perform_system_call(system_call_number, a, b, c, d, e) }
+}
+
+pub fn get_pit_duration() -> Duration {
+    crate::handler::pic::get_duration()
 }

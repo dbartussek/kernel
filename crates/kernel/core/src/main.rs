@@ -10,14 +10,14 @@ use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
 use serial_io::*;
-use x86_64::instructions::{hlt, interrupts};
+use x86_64::instructions::interrupts;
 
 /// Import the global allocator from the allocators crate.
 ///
 /// This import has a side effect.
 #[allow(unused_imports)]
 use allocators::GLOBAL_ALLOCATOR;
-use interrupt_handling::perform_system_call;
+use interrupt_handling::{get_pit_duration, perform_system_call};
 use x86_64::instructions::interrupts::int3;
 
 pub fn exit(status: i32) -> ! {
@@ -58,8 +58,20 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     let syscall_result = perform_system_call(0, 0x22, 0x33, 0x44, 0x55, 0x66);
     info!("Performed system call: {:#X?}", syscall_result);
 
-    loop {
-        hlt();
+    let mut duration = get_pit_duration();
+    let mut counter = 0;
+
+    while counter < 10 {
+        interrupts::enable_interrupts_and_hlt();
+
+        let now = get_pit_duration();
+
+        let delta = now - duration;
+        if delta.as_secs() > 0 {
+            info!("A second has passed: {:?}", now);
+            duration = now;
+            counter += 1;
+        }
     }
 
     exit(0);

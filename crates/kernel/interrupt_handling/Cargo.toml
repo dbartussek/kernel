@@ -10,10 +10,12 @@ walkdir = "2.3"
 
 [dependencies]
 x86_64 = "0.9"
-pic8259 = { path = "../pic8259" }
 
 log = "0.4"
 
 lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"] }
 
 kernel_spin = { path = "../kernel_spin" }
+
+pic8259 = { path = "../pic8259" }
+pit = { path = "../pit" }
