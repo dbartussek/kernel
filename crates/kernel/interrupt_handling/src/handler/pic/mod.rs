@@ -1,3 +1,4 @@
+use crate::handler::pic::schedule::pump_tasks;
 use core::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -7,6 +8,8 @@ use log::*;
 use pic8259::ChainedPics;
 use pit::Pit;
 use x86_64::structures::idt::InterruptStackFrame;
+
+pub mod schedule;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -56,6 +59,8 @@ pub extern "x86-interrupt" fn timer_interrupt_handler(
         PIT.lock(|pit| pit.duration()).as_nanos() as u64,
         Ordering::SeqCst,
     );
+
+    pump_tasks();
 
     unsafe {
         PICS.lock(|pics| {

@@ -3,8 +3,8 @@
 
 extern crate alloc;
 
-use alloc::format;
-use core::panic::PanicInfo;
+use alloc::{format, sync::Arc};
+use core::{panic::PanicInfo, sync::atomic::AtomicUsize};
 use cpu_local_storage::get_core_id;
 use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
@@ -17,7 +17,10 @@ use x86_64::instructions::interrupts;
 /// This import has a side effect.
 #[allow(unused_imports)]
 use allocators::GLOBAL_ALLOCATOR;
-use interrupt_handling::{get_pit_duration, perform_system_call};
+use core::{sync::atomic::Ordering, time::Duration};
+use interrupt_handling::{
+    handler::pic::schedule::schedule_task, perform_system_call,
+};
 use x86_64::instructions::interrupts::int3;
 
 pub fn exit(status: i32) -> ! {
@@ -58,19 +61,20 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     let syscall_result = perform_system_call(0, 0x22, 0x33, 0x44, 0x55, 0x66);
     info!("Performed system call: {:#X?}", syscall_result);
 
-    let mut duration = get_pit_duration();
-    let mut counter = 0;
+    {
+        let counter = Arc::new(AtomicUsize::new(0));
 
-    while counter < 10 {
-        interrupts::enable_interrupts_and_hlt();
+        {
+            let local_counter = counter.clone();
+            let task = move || {
+                local_counter.fetch_add(1, Ordering::SeqCst);
+            };
 
-        let now = get_pit_duration();
+            schedule_task(Duration::from_secs(1), task);
+        }
 
-        let delta = now - duration;
-        if delta.as_secs() > 0 {
-            info!("A second has passed");
-            duration = now;
-            counter += 1;
+        while counter.load(Ordering::Acquire) < 1 {
+            interrupts::enable_interrupts_and_hlt();
         }
     }
 

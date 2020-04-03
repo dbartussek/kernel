@@ -1,6 +1,8 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
 
+extern crate alloc;
+
 use core::time::Duration;
 
 pub mod handler;
