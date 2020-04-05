@@ -10,6 +10,7 @@ use interrupt_handling::perform_system_call;
 use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
+use raw_cpuid::*;
 use serial_io::*;
 use x86_64::instructions::{
     interrupts,
@@ -61,6 +62,13 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     info!("Performed system call: {:#X?}", syscall_result);
 
     enable_interrupts_and_hlt();
+
+    info!("CPUID 0x00: {:?}", cpuid!(0));
+    info!("TscInfo: {:#?}", CpuId::new().get_tsc_info());
+    info!(
+        "ProcessorFrequencyInfo: {:#?}",
+        CpuId::new().get_processor_frequency_info()
+    );
 
     exit(0);
 }

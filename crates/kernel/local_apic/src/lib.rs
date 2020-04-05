@@ -1,5 +1,6 @@
 #![no_std]
 
+use log::*;
 use page_management::page_table::identity_base;
 use x86_64::registers::model_specific::Msr;
 
@@ -138,6 +139,8 @@ pub unsafe fn init() {
     let mut apic_base = Msr::new(0x1B);
 
     let lapic = Registers::global();
+
+    info!("Local APIC version: {}", lapic.version.read());
 
     // Reset apic values
     lapic.destination_format.write(0xFF_FF_FF_FF);

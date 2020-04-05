@@ -1,5 +1,4 @@
 use local_apic::Registers;
-use log::*;
 use x86_64::structures::idt::InterruptStackFrame;
 
 pub extern "x86-interrupt" fn spurious_interrupt_handler(
