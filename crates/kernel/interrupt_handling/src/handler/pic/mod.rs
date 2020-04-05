@@ -39,8 +39,9 @@ impl InterruptIndex {
 
 pub unsafe fn init() {
     PICS.lock(|pic| {
+        // Disable all interrupts
         pic.initialize();
-        pic.set_mask(0, !0x03);
+        pic.set_mask(0, 0xff);
         pic.set_mask(1, 0xff);
         trace!("pic initialized");
     });
@@ -52,7 +53,24 @@ pub fn get_duration() -> Duration {
     Duration::from_nanos(PIT_TIME_COUNTER.load(Ordering::Acquire))
 }
 
-pub extern "x86-interrupt" fn timer_interrupt_handler(
+pub extern "x86-interrupt" fn pic_timer_interrupt_handler(
+    _stack_frame: &mut InterruptStackFrame,
+) {
+    PIT_TIME_COUNTER.fetch_add(
+        PIT.lock(|pit| pit.duration()).as_nanos() as u64,
+        Ordering::SeqCst,
+    );
+
+    pump_tasks();
+
+    unsafe {
+        PICS.lock(|pics| {
+            pics.notify_end_of_interrupt(InterruptIndex::Timer.as_u8())
+        });
+    }
+}
+
+pub extern "x86-interrupt" fn apic_timer_interrupt_handler(
     _stack_frame: &mut InterruptStackFrame,
 ) {
     PIT_TIME_COUNTER.fetch_add(

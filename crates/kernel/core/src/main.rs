@@ -3,25 +3,24 @@
 
 extern crate alloc;
 
-use alloc::{format, sync::Arc};
-use core::{panic::PanicInfo, sync::atomic::AtomicUsize};
+use alloc::format;
+use core::panic::PanicInfo;
 use cpu_local_storage::get_core_id;
+use interrupt_handling::perform_system_call;
 use log::*;
 use page_management::physical::map::PhysicalMemoryMap;
 use parameters::KernelArguments;
 use serial_io::*;
-use x86_64::instructions::interrupts;
+use x86_64::instructions::{
+    interrupts,
+    interrupts::{enable_interrupts_and_hlt, int3},
+};
 
 /// Import the global allocator from the allocators crate.
 ///
 /// This import has a side effect.
 #[allow(unused_imports)]
 use allocators::GLOBAL_ALLOCATOR;
-use core::{sync::atomic::Ordering, time::Duration};
-use interrupt_handling::{
-    handler::pic::schedule::schedule_task, perform_system_call,
-};
-use x86_64::instructions::interrupts::int3;
 
 pub fn exit(status: i32) -> ! {
     qemu_exit::x86::exit::<u32, { 0xf4 }>(status as u32)
@@ -61,22 +60,7 @@ pub unsafe extern "sysv64" fn _start(args: *mut KernelArguments) -> ! {
     let syscall_result = perform_system_call(0, 0x22, 0x33, 0x44, 0x55, 0x66);
     info!("Performed system call: {:#X?}", syscall_result);
 
-    {
-        let counter = Arc::new(AtomicUsize::new(0));
-
-        {
-            let local_counter = counter.clone();
-            let task = move || {
-                local_counter.fetch_add(1, Ordering::SeqCst);
-            };
-
-            schedule_task(Duration::from_secs(1), task);
-        }
-
-        while counter.load(Ordering::Acquire) < 1 {
-            interrupts::enable_interrupts_and_hlt();
-        }
-    }
+    enable_interrupts_and_hlt();
 
     exit(0);
 }

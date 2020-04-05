@@ -1,0 +1,12 @@
+[package]
+name = "local_apic"
+version = "0.1.0"
+authors = ["Dario Bartussek <d.bartussek@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+page_management = { path = "../../ffi/page_management" }
+
+x86_64 = "0.9"
+
+log = "0.4"

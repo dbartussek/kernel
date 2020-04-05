@@ -19,3 +19,5 @@ kernel_spin = { path = "../kernel_spin" }
 
 pic8259 = { path = "../pic8259" }
 pit = { path = "../pit" }
+
+local_apic = { path = "../local_apic" }

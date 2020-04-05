@@ -1,9 +1,14 @@
-use crate::handler::pic::{timer_interrupt_handler, InterruptIndex};
+use crate::handler::{
+    apic::{apic_timer_handler, spurious_interrupt_handler},
+    pic::{pic_timer_interrupt_handler, InterruptIndex},
+};
+use local_apic::{SPURIOUS_INTERRUPT, TIMER_INTERRUPT};
 use log::*;
 use x86_64::structures::idt::{
     InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode,
 };
 
+pub mod apic;
 pub(crate) mod gdt;
 pub mod pic;
 
@@ -117,7 +122,11 @@ pub unsafe fn init() {
         add_unknown_handler!(pic15, 15);
 
         IDT[InterruptIndex::Timer.as_usize()]
-            .set_handler_fn(timer_interrupt_handler);
+            .set_handler_fn(pic_timer_interrupt_handler);
+
+        IDT[TIMER_INTERRUPT as usize].set_handler_fn(apic_timer_handler);
+        IDT[SPURIOUS_INTERRUPT as usize]
+            .set_handler_fn(spurious_interrupt_handler);
     }
 
     IDT[0x80].set_handler_fn(core::mem::transmute(
@@ -127,6 +136,7 @@ pub unsafe fn init() {
     IDT.load();
 
     pic::init();
+    local_apic::init();
 }
 
 extern "x86-interrupt" fn double_fault_handler(
