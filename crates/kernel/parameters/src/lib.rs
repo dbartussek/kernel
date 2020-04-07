@@ -6,7 +6,9 @@ use page_management::physical::{
     map::PhysicalMemoryMap, page_usage::PageUsageRawType,
 };
 use uefi::table::{Runtime, SystemTable};
-use x86_64::{instructions::interrupts, structures::paging::Page, VirtAddr};
+use x86_64::{
+    instructions::interrupts, structures::paging::Page, PhysAddr, VirtAddr,
+};
 
 pub type KernelEntrySignature =
     unsafe extern "sysv64" fn(*mut KernelArguments) -> ();
@@ -17,6 +19,8 @@ pub struct KernelArguments {
 
     pub physical_memory_map: PhysicalMemoryMap<'static>,
     pub identity_base: Page,
+
+    pub rsdp: PhysAddr,
 }
 
 pub struct InitializedKernelArguments {

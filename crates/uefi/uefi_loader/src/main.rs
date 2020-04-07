@@ -11,6 +11,7 @@ pub mod memory_map;
 pub mod read_kernel;
 
 use crate::{memory_map::exit_boot_services, read_kernel::read_kernel};
+use acpi::{RootSystemDescriptionPointer2, RSDP2_GUID};
 use alloc::boxed::Box;
 use call_with_stack::call_with_stack;
 use core::mem::MaybeUninit;
@@ -170,6 +171,23 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     st.stdout().reset(false).unwrap().log();
 
     info!("Initialized");
+
+    let rsdp = {
+        let acpi_2_rsdp = st
+            .config_table()
+            .iter()
+            .find(|table| table.guid == RSDP2_GUID)
+            .expect("ACPI 2.0 RSDP is missing");
+
+        unsafe {
+            let ptr: *const RootSystemDescriptionPointer2 =
+                core::mem::transmute(acpi_2_rsdp.address);
+            let ptr = &*ptr;
+            assert!(ptr.check_valid());
+        }
+
+        PhysAddr::new(acpi_2_rsdp.address as usize as u64)
+    };
 
     {
         // Initialize the CpuLocalData.
@@ -358,6 +376,7 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
     unsafe {
         let kernel_arguments = kernel_arguments_box.write(KernelArguments {
             st,
+            rsdp,
             physical_memory_map: PhysicalMemoryMap::take_global(),
             identity_base: desired_identity_base,
         }) as *mut KernelArguments;
